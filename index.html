@@ -121,8 +121,15 @@
                             <h3 class="text-lg font-semibold text-gray-800">Select Indicators to Display</h3>
                             <div class="flex items-center gap-2">
                                 <div class="loading-spinner" id="loading-spinner" style="display: none;"></div>
+                                <div class="flex items-center gap-2 text-xs">
+                                    <span id="data-status" class="px-2 py-1 rounded bg-gray-200 text-gray-600">Checking...</span>
+                                    <span id="last-check" class="text-gray-500">--</span>
+                                </div>
                                 <button id="refresh-data" class="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
                                     Refresh Data
+                                </button>
+                                <button id="auto-refresh-toggle" class="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700">
+                                    Auto: OFF
                                 </button>
                             </div>
                         </div>
@@ -244,6 +251,10 @@
     <script>
         let marketData = [];
         let selectedIndicators = new Set(['Number of stocks up 4% plus today', 'Number of stocks down 4% plus today', 'T2108']);
+        let autoRefreshEnabled = false;
+        let autoRefreshInterval = null;
+        let lastDataHash = null;
+        let lastCheckTime = null;
         
         // Define indicator configurations
         const indicatorConfig = {
@@ -269,12 +280,120 @@
             ' Worden Common stock universe': { color: '#84cc16', category: 'market', yAxis: 'left', name: 'Total Universe' }
         };
 
-        // Load and parse CSV data
-        async function loadMarketData() {
+        // Generate hash for data comparison
+        function generateDataHash(data) {
+            if (!data || data.length === 0) return null;
+            const firstRow = data[0];
+            const hashString = JSON.stringify({
+                date: firstRow.Date,
+                upStocks: firstRow['Number of stocks up 4% plus today'],
+                downStocks: firstRow['Number of stocks down 4% plus today'],
+                t2108: firstRow['T2108'],
+                recordCount: data.length
+            });
+            return btoa(hashString); // Simple base64 hash
+        }
+
+        // Check for fresh data from Google Sheets
+        async function checkForFreshData() {
+            try {
+                updateDataStatus('checking', 'Checking for updates...');
+                
+                // Fetch directly from Google Sheets CSV
+                const response = await fetch('https://docs.google.com/spreadsheets/d/1O6OhS7ciA8zwfycBfGPbP2fWJnR0pn2UUvFZVDP9jpE/pub?output=csv&t=' + Date.now());
+                const csvText = await response.text();
+                const lines = csvText.trim().split('\n');
+                
+                // Parse just enough to get the latest data point
+                const headers = lines[1].split(',');
+                const latestRow = {};
+                
+                if (lines.length > 2) {
+                    const values = lines[2].split(',');
+                    headers.forEach((header, index) => {
+                        let value = values[index];
+                        if (value && header !== 'Date') {
+                            value = value.replace(/[",]/g, '');
+                            if (!isNaN(value) && value !== '') {
+                                value = parseFloat(value);
+                            }
+                        }
+                        latestRow[header] = value;
+                    });
+                }
+                
+                // Generate hash for comparison
+                const newDataHash = generateDataHash([latestRow]);
+                lastCheckTime = new Date();
+                
+                if (lastDataHash === null) {
+                    lastDataHash = newDataHash;
+                    updateDataStatus('current', 'Data loaded');
+                    return { hasUpdate: false, isFirstLoad: true };
+                } else if (newDataHash !== lastDataHash) {
+                    lastDataHash = newDataHash;
+                    updateDataStatus('updated', 'New data available!');
+                    return { hasUpdate: true, latestData: latestRow };
+                } else {
+                    updateDataStatus('current', 'Data is current');
+                    return { hasUpdate: false };
+                }
+                
+            } catch (error) {
+                console.error('Error checking for fresh data:', error);
+                updateDataStatus('error', 'Check failed');
+                return { hasUpdate: false, error: true };
+            }
+        }
+
+        // Update data status display
+        function updateDataStatus(status, message) {
+            const statusElement = document.getElementById('data-status');
+            const lastCheckElement = document.getElementById('last-check');
+            
+            // Update status badge
+            statusElement.textContent = message;
+            statusElement.className = 'px-2 py-1 rounded text-xs ';
+            
+            switch (status) {
+                case 'checking':
+                    statusElement.className += 'bg-yellow-200 text-yellow-800';
+                    break;
+                case 'current':
+                    statusElement.className += 'bg-green-200 text-green-800';
+                    break;
+                case 'updated':
+                    statusElement.className += 'bg-blue-200 text-blue-800';
+                    break;
+                case 'error':
+                    statusElement.className += 'bg-red-200 text-red-800';
+                    break;
+                default:
+                    statusElement.className += 'bg-gray-200 text-gray-600';
+            }
+            
+            // Update last check time
+            if (lastCheckTime) {
+                lastCheckElement.textContent = `Last: ${lastCheckTime.toLocaleTimeString()}`;
+            }
+        }
+
+        // Load and parse CSV data (enhanced version)
+        async function loadMarketData(skipFreshCheck = false) {
             try {
                 document.getElementById('loading-spinner').style.display = 'block';
                 
-                const response = await fetch('./market_data.csv');
+                // Check for fresh data first (unless skipped)
+                if (!skipFreshCheck) {
+                    const freshCheck = await checkForFreshData();
+                    if (!freshCheck.hasUpdate && !freshCheck.isFirstLoad && !freshCheck.error) {
+                        document.getElementById('loading-spinner').style.display = 'none';
+                        return; // No update needed
+                    }
+                }
+                
+                // Fetch data with cache-busting
+                const response = await fetch(`https://docs.google.com/spreadsheets/d/1O6OhS7ciA8zwfycBfGPbP2fWJnR0pn2UUvFZVDP9jpE/pub?output=csv&t=${Date.now()}`);
                 const csvText = await response.text();
                 const lines = csvText.trim().split('\n');
                 
@@ -308,8 +427,10 @@
                 }
                 
                 marketData = data.reverse(); // Most recent first
+                lastDataHash = generateDataHash(marketData);
                 
                 document.getElementById('loading-spinner').style.display = 'none';
+                updateDataStatus('current', 'Data refreshed');
                 updateDataInfo();
                 createIndicatorCheckboxes();
                 drawChart();
@@ -318,7 +439,39 @@
             } catch (error) {
                 console.error('Error loading market data:', error);
                 document.getElementById('loading-spinner').style.display = 'none';
+                updateDataStatus('error', 'Load failed');
                 alert('Error loading market data. Please check your connection.');
+            }
+        }
+
+        // Toggle auto-refresh functionality
+        function toggleAutoRefresh() {
+            const toggleButton = document.getElementById('auto-refresh-toggle');
+            
+            if (autoRefreshEnabled) {
+                // Disable auto-refresh
+                autoRefreshEnabled = false;
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+                toggleButton.textContent = 'Auto: OFF';
+                toggleButton.className = 'px-3 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700';
+            } else {
+                // Enable auto-refresh
+                autoRefreshEnabled = true;
+                toggleButton.textContent = 'Auto: ON';
+                toggleButton.className = 'px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700';
+                
+                // Check every 2 minutes
+                autoRefreshInterval = setInterval(async () => {
+                    const freshCheck = await checkForFreshData();
+                    if (freshCheck.hasUpdate) {
+                        console.log('Auto-refresh: New data detected, refreshing...');
+                        await loadMarketData(true); // Skip fresh check since we just did it
+                    }
+                }, 120000); // 2 minutes
+                
+                // Do initial check
+                checkForFreshData();
             }
         }
 
@@ -825,10 +978,21 @@
 
         // Event listeners
         document.getElementById('time-range').addEventListener('change', drawChart);
-        document.getElementById('refresh-data').addEventListener('click', loadMarketData);
+        document.getElementById('refresh-data').addEventListener('click', () => loadMarketData(true));
+        document.getElementById('auto-refresh-toggle').addEventListener('click', toggleAutoRefresh);
         
         // Initialize
-        document.addEventListener('DOMContentLoaded', loadMarketData);
+        document.addEventListener('DOMContentLoaded', () => {
+            loadMarketData();
+            
+            // Set up periodic freshness checks (every 5 minutes when auto-refresh is off)
+            setInterval(async () => {
+                if (!autoRefreshEnabled) {
+                    await checkForFreshData();
+                }
+            }, 300000); // 5 minutes
+        });
+        
         window.addEventListener('resize', drawChart);
     </script>
 </body>
