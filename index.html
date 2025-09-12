@@ -1341,9 +1341,11 @@
             
             // Add series items with color swatches
             tooltip.dataPoints.forEach((dataPoint, index) => {
-                const config = indicatorConfig[Object.keys(indicatorConfig).find(key => 
+                // Find the config by matching dataset label with indicator name
+                const configKey = Object.keys(indicatorConfig).find(key => 
                     indicatorConfig[key].name === dataPoint.dataset.label
-                )];
+                );
+                const config = configKey ? indicatorConfig[configKey] : null;
                 
                 if (config) {
                     const seriesItem = document.createElement('div');
@@ -1354,7 +1356,7 @@
                             <div class="series-swatch" style="background-color: ${config.color}"></div>
                             <span class="series-name">${config.name}</span>
                         </div>
-                        <span class="series-value">${formatTooltipValue(dataPoint.parsed.y, dataPoint.dataset.label)}</span>
+                        <span class="series-value">${formatTooltipValue(dataPoint.parsed.y, config.name)}</span>
                     `;
                     
                     seriesEl.appendChild(seriesItem);
@@ -1664,7 +1666,7 @@
                             
                             // Get data point
                             const dataIndex = tooltip.dataPoints[0].dataIndex;
-                            const dataPoint = filteredData[dataIndex];
+                            const dataPoint = chart.filteredData[dataIndex];
                             
                             if (dataPoint) {
                                 // Update tooltip content
@@ -1912,6 +1914,9 @@
                 },
                 options: getResponsiveChartOptions(timeRange, rangeText, containerWidth)
             });
+            
+            // Store filtered data on chart instance for tooltip access
+            chartInstance.filteredData = filteredData;
             
             // Add enhanced mouse interaction event listeners
             canvas.addEventListener('mouseleave', function() {

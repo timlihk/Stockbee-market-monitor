@@ -708,9 +708,11 @@
             tooltip.dataPoints.forEach((dataPoint, index) => {
                 const datasetIndex = dataPoint.datasetIndex;
                 const dataset = chart.data.datasets[datasetIndex];
-                const config = Object.values(indicatorConfig).find(config => 
-                    config.name === dataset.label
+                // Find the config by matching dataset label with indicator name
+                const configKey = Object.keys(indicatorConfig).find(key => 
+                    indicatorConfig[key].name === dataset.label
                 );
+                const config = configKey ? indicatorConfig[configKey] : null;
                 
                 if (config) {
                     const seriesItem = document.createElement('div');
@@ -1032,7 +1034,7 @@
                             
                             // Get data point
                             const dataIndex = tooltip.dataPoints[0].dataIndex;
-                            const dataPoint = filteredData[dataIndex];
+                            const dataPoint = chart.filteredData[dataIndex];
                             
                             if (dataPoint) {
                                 // Update tooltip content
@@ -1478,6 +1480,9 @@
                 },
                 options: getResponsiveChartOptions(timeRange, rangeText, containerWidth)
             });
+            
+            // Store filtered data on chart instance for tooltip access
+            chartInstance.filteredData = filteredData;
             
             // Add enhanced mouse interaction event listeners
             canvas.addEventListener('mouseleave', function() {
