@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stockbee Market Monitor</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
             margin: 0;
@@ -13,55 +14,8 @@
                 sans-serif;
             background-color: #f9fafb;
         }
-        .chart-line {
-            fill: none;
-            stroke-width: 2;
-        }
-        .grid-line {
-            stroke: #e5e7eb;
-            stroke-width: 1;
-            stroke-dasharray: 3,3;
-        }
-        .axis-line {
-            stroke: #6b7280;
-            stroke-width: 1;
-        }
-        .axis-text {
-            font-size: 12px;
-            fill: #6b7280;
-            font-family: inherit;
-        }
-        .chart-tooltip {
-            position: absolute;
-            background: rgba(0,0,0,0.9);
-            color: white;
-            padding: 12px;
-            border-radius: 6px;
-            font-size: 12px;
-            pointer-events: none;
-            z-index: 1000;
-            display: none;
-            max-width: 250px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
         .chart-container {
             position: relative;
-        }
-        .hover-area {
-            fill: transparent;
-            cursor: crosshair;
-        }
-        .hover-line {
-            stroke: #6b7280;
-            stroke-width: 1;
-            stroke-dasharray: 2,2;
-            pointer-events: none;
-            opacity: 0.7;
-        }
-        .hover-point {
-            fill: white;
-            stroke-width: 2;
-            pointer-events: none;
         }
         .indicator-checkbox {
             appearance: none;
@@ -175,10 +129,7 @@
                     </div>
                     
                     <div class="chart-container bg-white rounded-lg border">
-                        <svg id="stockChart" width="100%" height="500" viewBox="0 0 1000 500">
-                            <!-- Chart will be drawn here -->
-                        </svg>
-                        <div class="chart-tooltip" id="tooltip"></div>
+                        <canvas id="stockChart" style="width:100%;height:500px;"></canvas>
                     </div>
                 </div>
                 
@@ -666,374 +617,72 @@
             sentimentDesc.textContent = description;
         }
 
-        // SVG Chart Drawing Functions
-        function createSVGElement(tag, attrs) {
-            const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
-            for (const [key, value] of Object.entries(attrs)) {
-                el.setAttribute(key, value);
-            }
-            return el;
-        }
-
-        // Draw the main chart
+        // Chart rendering with Chart.js
+        let chartInstance = null;
         function drawChart() {
             if (marketData.length === 0) return;
-            
-            const svg = document.getElementById('stockChart');
-            const tooltip = document.getElementById('tooltip');
+
+            const ctx = document.getElementById('stockChart').getContext('2d');
             const timeRange = parseInt(document.getElementById('time-range').value);
-            
-            svg.innerHTML = '';
-            
-            // Filter data by time range using actual dates
+
             let filteredData = marketData;
             if (timeRange > 0) {
-                const today = new Date();
                 const cutoffDate = new Date();
-                cutoffDate.setDate(today.getDate() - timeRange);
-                
+                cutoffDate.setDate(cutoffDate.getDate() - timeRange);
                 filteredData = marketData.filter(d => {
                     if (!d.Date) return false;
-                    const recordDate = new Date(d.Date);
-                    return recordDate >= cutoffDate;
+                    return new Date(d.Date) >= cutoffDate;
                 });
-                
-                console.log(`Time range: ${timeRange} days`);
-                console.log(`Cutoff date: ${cutoffDate.toLocaleDateString()}`);
-                console.log(`Filtered data: ${filteredData.length} records`);
-                if (filteredData.length > 0) {
-                    console.log(`Date range: ${filteredData[filteredData.length - 1].Date} to ${filteredData[0].Date}`);
-                }
             }
-            
             if (filteredData.length === 0) return;
-            
-            // Chart dimensions
-            const margin = { top: 50, right: 80, bottom: 80, left: 80 };
-            const width = 1000 - margin.left - margin.right;
-            const height = 500 - margin.top - margin.bottom;
-            
-            const chartGroup = createSVGElement('g', {
-                transform: `translate(${margin.left}, ${margin.top})`
-            });
-            svg.appendChild(chartGroup);
-            
-            // Get selected indicator data
-            const activeIndicators = Array.from(selectedIndicators).filter(key => 
-                filteredData.some(d => d[key] !== undefined && d[key] !== null)
+
+            const orderedData = filteredData.slice().reverse();
+            const labels = orderedData.map(d => d.Date);
+
+            const activeIndicators = Array.from(selectedIndicators).filter(key =>
+                orderedData.some(d => d[key] !== undefined && d[key] !== null)
             );
-            
             if (activeIndicators.length === 0) return;
-            
-            // Calculate scales
-            const leftAxisIndicators = activeIndicators.filter(key => indicatorConfig[key].yAxis === 'left');
-            const rightAxisIndicators = activeIndicators.filter(key => indicatorConfig[key].yAxis === 'right');
-            
-            let leftMin = 0, leftMax = 100, rightMin = 0, rightMax = 100;
-            
-            if (leftAxisIndicators.length > 0) {
-                const leftValues = filteredData.flatMap(d => 
-                    leftAxisIndicators.map(key => d[key]).filter(v => v !== undefined && v !== null)
-                );
-                leftMin = Math.min(...leftValues);
-                leftMax = Math.max(...leftValues);
-                const leftPadding = (leftMax - leftMin) * 0.1;
-                leftMin = Math.max(0, leftMin - leftPadding);
-                leftMax = leftMax + leftPadding;
-            }
-            
-            if (rightAxisIndicators.length > 0) {
-                const rightValues = filteredData.flatMap(d => 
-                    rightAxisIndicators.map(key => d[key]).filter(v => v !== undefined && v !== null)
-                );
-                rightMin = Math.min(...rightValues);
-                rightMax = Math.max(...rightValues);
-                const rightPadding = (rightMax - rightMin) * 0.1;
-                rightMin = Math.max(0, rightMin - rightPadding);
-                rightMax = rightMax + rightPadding;
-            }
-            
-            const scaleX = (i) => (i / Math.max(filteredData.length - 1, 1)) * width;
-            const scaleLeft = (value) => height - ((value - leftMin) / (leftMax - leftMin)) * height;
-            const scaleRight = (value) => height - ((value - rightMin) / (rightMax - rightMin)) * height;
-            
-            // Draw grid lines
-            for (let i = 0; i <= 5; i++) {
-                const y = (i / 5) * height;
-                const gridLine = createSVGElement('line', {
-                    x1: '0', y1: y.toString(), x2: width.toString(), y2: y.toString(),
-                    class: 'grid-line'
-                });
-                chartGroup.appendChild(gridLine);
-            }
-            
-            // Draw axes
-            [
-                { x1: '0', y1: '0', x2: '0', y2: height.toString() },
-                { x1: '0', y1: height.toString(), x2: width.toString(), y2: height.toString() },
-                { x1: width.toString(), y1: '0', x2: width.toString(), y2: height.toString() }
-            ].forEach(attrs => {
-                const axis = createSVGElement('line', { ...attrs, class: 'axis-line' });
-                chartGroup.appendChild(axis);
-            });
-            
-            // Draw Y-axis labels (left)
-            if (leftAxisIndicators.length > 0) {
-                for (let i = 0; i <= 5; i++) {
-                    const value = leftMin + (leftMax - leftMin) * i / 5;
-                    const y = height - (i / 5) * height;
-                    const label = createSVGElement('text', {
-                        x: '-10', y: (y + 4).toString(),
-                        class: 'axis-text', 'text-anchor': 'end'
-                    });
-                    label.textContent = Math.round(value).toLocaleString();
-                    chartGroup.appendChild(label);
-                }
-            }
-            
-            // Draw Y-axis labels (right)
-            if (rightAxisIndicators.length > 0) {
-                for (let i = 0; i <= 5; i++) {
-                    const value = rightMin + (rightMax - rightMin) * i / 5;
-                    const y = height - (i / 5) * height;
-                    const label = createSVGElement('text', {
-                        x: (width + 10).toString(), y: (y + 4).toString(),
-                        class: 'axis-text', 'text-anchor': 'start'
-                    });
-                    label.textContent = value.toFixed(1);
-                    chartGroup.appendChild(label);
-                }
-            }
-            
-            // Draw X-axis labels
-            const labelStep = Math.max(1, Math.ceil(filteredData.length / 8));
-            for (let i = 0; i < filteredData.length; i += labelStep) {
-                const x = scaleX(i);
-                const label = createSVGElement('text', {
-                    x: x.toString(), y: (height + 25).toString(),
-                    class: 'axis-text', 'text-anchor': 'middle'
-                });
-                label.textContent = new Date(filteredData[i].Date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                chartGroup.appendChild(label);
-            }
-            
-            // Draw indicator lines
-            activeIndicators.forEach(indicatorKey => {
-                const config = indicatorConfig[indicatorKey];
-                const scaleFunc = config.yAxis === 'left' ? scaleLeft : scaleRight;
-                
-                const pathData = filteredData.map((d, i) => {
-                    if (d[indicatorKey] === undefined || d[indicatorKey] === null) return null;
-                    const x = scaleX(i);
-                    const y = scaleFunc(d[indicatorKey]);
-                    return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
-                }).filter(p => p !== null).join(' ');
-                
-                if (pathData) {
-                    const path = createSVGElement('path', {
-                        d: pathData,
-                        class: 'chart-line',
-                        stroke: config.color,
-                        'stroke-width': '2',
-                        'stroke-dasharray': config.dashArray || 'none'
-                    });
-                    chartGroup.appendChild(path);
-                    
-                    // Draw data points
-                    filteredData.forEach((d, i) => {
-                        if (d[indicatorKey] !== undefined && d[indicatorKey] !== null) {
-                            const x = scaleX(i);
-                            const y = scaleFunc(d[indicatorKey]);
-                            const circle = createSVGElement('circle', {
-                                cx: x.toString(), cy: y.toString(), r: '3',
-                                fill: config.color, stroke: 'white', 'stroke-width': '1'
-                            });
-                            chartGroup.appendChild(circle);
-                        }
-                    });
-                }
-            });
-            
-            // Create hover elements
-            const hoverLine = createSVGElement('line', {
-                x1: '0', y1: '0', x2: '0', y2: height.toString(),
-                class: 'hover-line',
-                style: 'display: none'
-            });
-            chartGroup.appendChild(hoverLine);
-            
-            const hoverPoints = [];
-            activeIndicators.forEach(key => {
+
+            const datasets = activeIndicators.map(key => {
                 const config = indicatorConfig[key];
-                const hoverPoint = createSVGElement('circle', {
-                    cx: '0', cy: '0', r: '5',
-                    class: 'hover-point',
-                    stroke: config.color,
-                    style: 'display: none'
-                });
-                hoverPoints.push({ element: hoverPoint, key, config });
-                chartGroup.appendChild(hoverPoint);
+                return {
+                    label: config.name,
+                    data: orderedData.map(d => d[key] !== undefined && d[key] !== null ? d[key] : null),
+                    borderColor: config.color,
+                    backgroundColor: config.color,
+                    borderDash: config.dashArray ? config.dashArray.split(',').map(Number) : undefined,
+                    yAxisID: config.yAxis === 'left' ? 'y' : 'y1',
+                    tension: 0.3,
+                    spanGaps: true
+                };
             });
-            
-            // Add hover areas for enhanced tooltips
-            filteredData.forEach((d, i) => {
-                const x = scaleX(i);
-                const hoverRect = createSVGElement('rect', {
-                    x: (x - 15).toString(), y: '0', width: '30', height: height.toString(),
-                    class: 'hover-area'
-                });
-                
-                hoverRect.addEventListener('mouseenter', (e) => {
-                    // Show hover line
-                    hoverLine.setAttribute('x1', x.toString());
-                    hoverLine.setAttribute('x2', x.toString());
-                    hoverLine.style.display = 'block';
-                    
-                    // Show hover points for each active indicator
-                    hoverPoints.forEach(({ element, key, config }) => {
-                        if (d[key] !== undefined && d[key] !== null) {
-                            const scaleFunc = config.yAxis === 'left' ? scaleLeft : scaleRight;
-                            const y = scaleFunc(d[key]);
-                            element.setAttribute('cx', x.toString());
-                            element.setAttribute('cy', y.toString());
-                            element.style.display = 'block';
-                        } else {
-                            element.style.display = 'none';
-                        }
-                    });
-                    
-                    // Enhanced tooltip content
-                    const tooltipContent = [`<strong>📅 ${d.Date}</strong>`];
-                    
-                    // Add market summary
-                    const upStocks = d['Number of stocks up 4% plus today'];
-                    const downStocks = d['Number of stocks down 4% plus today'];
-                    const t2108 = d['T2108'];
-                    const ratio5day = d['5 day ratio'];
-                    
-                    if (upStocks !== undefined && downStocks !== undefined) {
-                        const netBreadth = upStocks - downStocks;
-                        const breadthColor = netBreadth > 0 ? '#10b981' : '#ef4444';
-                        tooltipContent.push(`<div style="margin: 8px 0; padding: 4px; background: rgba(0,0,0,0.1); border-radius: 4px;">`);
-                        tooltipContent.push(`<strong>📊 Market Summary</strong>`);
-                        tooltipContent.push(`Net Breadth: <span style="color: ${breadthColor}">${netBreadth > 0 ? '+' : ''}${netBreadth.toLocaleString()}</span>`);
-                        if (ratio5day) tooltipContent.push(`5D Ratio: <strong>${ratio5day.toFixed(2)}</strong>`);
-                        if (t2108) tooltipContent.push(`T2108: <strong>${t2108.toFixed(1)}%</strong>`);
-                        tooltipContent.push(`</div>`);
-                    }
-                    
-                    // Add selected indicators
-                    tooltipContent.push(`<strong>📈 Selected Indicators:</strong>`);
-                    activeIndicators.forEach(key => {
-                        if (d[key] !== undefined && d[key] !== null) {
-                            const config = indicatorConfig[key];
-                            let value = d[key];
-                            let displayValue;
-                            
-                            // Format values appropriately
-                            if (key === 'T2108') {
-                                displayValue = `${value.toFixed(1)}%`;
-                            } else if (key === '5 day ratio' || key === '10 day  ratio ') {
-                                displayValue = value.toFixed(2);
-                            } else if (typeof value === 'number') {
-                                displayValue = value.toLocaleString();
-                            } else {
-                                displayValue = value;
-                            }
-                            
-                            tooltipContent.push(`<span style="color: ${config.color}">●</span> ${config.name}: <strong>${displayValue}</strong>`);
-                        }
-                    });
-                    
-                    // Position and show tooltip
-                    tooltip.innerHTML = tooltipContent.join('<br>');
-                    tooltip.style.display = 'block';
-                    
-                    // Smart positioning to avoid edge overflow
-                    const tooltipRect = tooltip.getBoundingClientRect();
-                    let left = e.pageX + 15;
-                    let top = e.pageY - 10;
-                    
-                    if (left + tooltipRect.width > window.innerWidth - 20) {
-                        left = e.pageX - tooltipRect.width - 15;
-                    }
-                    if (top + tooltipRect.height > window.innerHeight - 20) {
-                        top = e.pageY - tooltipRect.height - 10;
-                    }
-                    
-                    tooltip.style.left = Math.max(10, left) + 'px';
-                    tooltip.style.top = Math.max(10, top) + 'px';
-                });
-                
-                hoverRect.addEventListener('mousemove', (e) => {
-                    // Update tooltip position on mouse move
-                    const tooltipRect = tooltip.getBoundingClientRect();
-                    let left = e.pageX + 15;
-                    let top = e.pageY - 10;
-                    
-                    if (left + tooltipRect.width > window.innerWidth - 20) {
-                        left = e.pageX - tooltipRect.width - 15;
-                    }
-                    if (top + tooltipRect.height > window.innerHeight - 20) {
-                        top = e.pageY - tooltipRect.height - 10;
-                    }
-                    
-                    tooltip.style.left = Math.max(10, left) + 'px';
-                    tooltip.style.top = Math.max(10, top) + 'px';
-                });
-                
-                hoverRect.addEventListener('mouseleave', () => {
-                    // Hide hover elements
-                    hoverLine.style.display = 'none';
-                    hoverPoints.forEach(({ element }) => {
-                        element.style.display = 'none';
-                    });
-                    tooltip.style.display = 'none';
-                });
-                
-                chartGroup.appendChild(hoverRect);
-            });
-            
-            // Add legend and time range indicator
-            const legend = createSVGElement('g', { transform: 'translate(20, 20)' });
-            
-            // Time range indicator
-            const timeRangeText = createSVGElement('text', {
-                x: '0', y: '-5',
-                class: 'axis-text', fill: '#6b7280',
-                'font-size': '11', 'font-weight': 'bold'
-            });
-            if (timeRange > 0) {
-                const dateRangeText = filteredData.length > 0 ? 
-                    `${filteredData[filteredData.length - 1].Date} to ${filteredData[0].Date}` : 
-                    `Last ${timeRange} days`;
-                timeRangeText.textContent = `📅 ${dateRangeText}`;
-            } else {
-                timeRangeText.textContent = '📅 All Historical Data';
+
+            if (chartInstance) {
+                chartInstance.destroy();
             }
-            legend.appendChild(timeRangeText);
-            
-            // Indicator legend
-            activeIndicators.forEach((key, i) => {
-                const config = indicatorConfig[key];
-                const legendY = (i + 1) * 18; // +1 to account for time range text
-                
-                const line = createSVGElement('line', {
-                    x1: '0', y1: legendY.toString(), x2: '20', y2: legendY.toString(),
-                    stroke: config.color, 'stroke-width': '3',
-                    'stroke-dasharray': config.dashArray || 'none'
-                });
-                
-                const text = createSVGElement('text', {
-                    x: '25', y: (legendY + 4).toString(),
-                    class: 'axis-text', fill: '#374151'
-                });
-                text.textContent = config.name;
-                
-                legend.appendChild(line);
-                legend.appendChild(text);
+
+            const rangeText = timeRange > 0
+                ? `${orderedData[0].Date} to ${orderedData[orderedData.length - 1].Date}`
+                : "All Historical Data";
+
+            chartInstance = new Chart(ctx, {
+                type: "line",
+                data: { labels, datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: "index", intersect: false },
+                    plugins: {
+                        legend: { display: true },
+                        title: { display: true, text: `📅 ${rangeText}` }
+                    },
+                    scales: {
+                        y: { type: "linear", position: "left" },
+                        y1: { type: "linear", position: "right", grid: { drawOnChartArea: false } }
+                    }
+                }
             });
-            chartGroup.appendChild(legend);
         }
 
         // Event listeners
