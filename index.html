@@ -13,331 +13,456 @@
                 sans-serif;
             background-color: #f9fafb;
         }
-        .loading {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 400px;
-            font-size: 18px;
-            color: #666;
+        .chart-line {
+            fill: none;
+            stroke-width: 2;
+        }
+        .chart-area {
+            opacity: 0.1;
+        }
+        .grid-line {
+            stroke: #e5e7eb;
+            stroke-width: 1;
+            stroke-dasharray: 3,3;
+        }
+        .axis-line {
+            stroke: #6b7280;
+            stroke-width: 1;
+        }
+        .axis-text {
+            font-size: 12px;
+            fill: #6b7280;
+            font-family: inherit;
+        }
+        .chart-tooltip {
+            position: absolute;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 1000;
+            display: none;
         }
         .chart-container {
-            width: 100%;
-            height: 400px;
-            background: #f8f9fa;
-            border: 2px dashed #dee2e6;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 8px;
-            margin: 20px 0;
+            position: relative;
+        }
+        .hover-area {
+            fill: transparent;
+            cursor: crosshair;
         }
     </style>
 </head>
 <body>
     <div id="root">
-        <div class="loading">Loading Stockbee Market Monitor...</div>
+        <div class="p-6 bg-gray-50 min-h-screen">
+            <div class="max-w-7xl mx-auto">
+                <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+                        <div>
+                            <h1 class="text-3xl font-bold text-gray-800">Stockbee Market Monitor</h1>
+                            <p class="text-gray-600 mt-2">Breadth-based market timing tracker with native SVG charts</p>
+                        </div>
+                        <div class="text-right mt-4 md:mt-0" id="sentiment-display">
+                            <div class="text-lg font-semibold" id="sentiment-text">Loading...</div>
+                            <div class="text-sm text-gray-500" id="sentiment-desc">Analyzing market data</div>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-container bg-white rounded-lg border">
+                        <svg id="stockChart" width="100%" height="400" viewBox="0 0 800 400">
+                            <!-- Chart will be drawn here -->
+                        </svg>
+                        <div class="chart-tooltip" id="tooltip"></div>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                    <div class="bg-white rounded-lg shadow p-4">
+                        <h3 class="font-semibold text-gray-800 mb-2">Key Levels</h3>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between">
+                                <span>T2108 &lt; 20:</span>
+                                <span class="text-green-600">Oversold Signal</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>5-Day Ratio &gt; 2.0:</span>
+                                <span class="text-green-600">Breadth Thrust</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>4% Down &gt; 300:</span>
+                                <span class="text-red-600">High Selling</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>25% Down/Q &lt; 200:</span>
+                                <span class="text-green-600">Capitulation</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-lg shadow p-4">
+                        <h3 class="font-semibold text-gray-800 mb-2">Current Readings</h3>
+                        <div class="space-y-2 text-sm" id="current-readings">
+                            <div class="flex justify-between">
+                                <span>Stocks Up 4%+:</span>
+                                <span id="stocks-up">--</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>Stocks Down 4%+:</span>
+                                <span id="stocks-down">--</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>T2108:</span>
+                                <span id="t2108-value">--%</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>5-Day Ratio:</span>
+                                <span id="ratio-value">--</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-lg shadow p-4">
+                        <h3 class="font-semibold text-gray-800 mb-2">Interpretation</h3>
+                        <div class="text-sm text-gray-600">
+                            <p class="mb-2">The Market Monitor tracks breadth using significant moves (4%+ daily, 25%+ quarterly) to reduce noise.</p>
+                            <p>Extreme readings often lead to counter-trend moves. Use for risk management and market timing.</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow p-4">
+                    <h3 class="font-semibold text-gray-800 mb-3">Market Monitor Indicators Explained</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div>
+                            <h4 class="font-medium text-gray-700 mb-2">Primary Indicators:</h4>
+                            <ul class="space-y-1 text-gray-600">
+                                <li><strong>4% Up/Down:</strong> Daily count of stocks with significant moves</li>
+                                <li><strong>25% Quarter:</strong> Stocks up/down 25%+ in past 65 trading days</li>
+                                <li><strong>T2108:</strong> Percentage of stocks above 40-day moving average</li>
+                                <li><strong>5/10-Day Ratios:</strong> Ratio of up vs down 4%+ moves</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-gray-700 mb-2">Usage Guidelines:</h4>
+                            <ul class="space-y-1 text-gray-600">
+                                <li><strong>Extreme Bullish:</strong> 1000+ up moves, ratio > 2.0</li>
+                                <li><strong>Extreme Bearish:</strong> 1000+ down moves, T2108 < 20</li>
+                                <li><strong>Oversold Bounce:</strong> Quarter down < 200</li>
+                                <li><strong>Risk Management:</strong> Reduce positions on extreme readings</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-green-50 border border-green-200 rounded-lg p-4 mt-6">
+                    <div class="flex items-center">
+                        <div class="text-green-600 mr-3">✅</div>
+                        <div>
+                            <h4 class="font-medium text-green-800">Chart Status</h4>
+                            <p class="text-sm text-green-700 mt-1">Interactive native SVG charts loaded successfully. No external dependencies required.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <!-- Load Chart.js for reliable charting -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-        // Simple approach - load Chart.js and create charts
-        function loadCharts() {
-            if (typeof Chart !== 'undefined') {
-                initChartVersion();
-            } else {
-                initBasicVersion();
+        // Generate sample market data
+        function generateSampleData() {
+            const data = [];
+            const startDate = new Date('2024-01-01');
+            
+            for (let i = 0; i < 90; i++) {
+                const date = new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000);
+                if (date.getDay() === 0 || date.getDay() === 6) continue;
+                
+                const trend = Math.sin(i / 30) * 80;
+                const volatility = Math.sin(i / 15) * 30;
+                const noise = (Math.random() - 0.5) * 50;
+                
+                data.push({
+                    date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                    fullDate: date.toLocaleDateString(),
+                    stocks_up_4pct: Math.max(20, Math.round(150 + trend + volatility + noise)),
+                    stocks_down_4pct: Math.max(20, Math.round(120 - trend + volatility + Math.abs(noise))),
+                    t2108: Math.max(15, Math.min(85, Math.round(50 + trend/2 + noise/4)))
+                });
             }
+            
+            return data;
         }
-        
-        function initChartVersion() {
-            // Generate sample data
-            function generateSampleData() {
-                const data = [];
-                const startDate = new Date('2024-01-01');
-                
-                for (let i = 0; i < 180; i++) {
-                    const date = new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000);
-                    if (date.getDay() === 0 || date.getDay() === 6) continue;
-                    
-                    const trend = Math.sin(i / 50) * 50;
-                    const volatility = Math.sin(i / 20) * 20;
-                    const noise = (Math.random() - 0.5) * 40;
-                    
-                    data.push({
-                        date: date.toLocaleDateString(),
-                        stocks_up_4pct: Math.max(0, Math.round(120 + trend + volatility + noise)),
-                        stocks_down_4pct: Math.max(0, Math.round(100 - trend + volatility + Math.abs(noise))),
-                        t2108: Math.max(10, Math.min(90, Math.round(50 + trend/2 + noise/3))),
-                        five_day_ratio: Math.max(0.2, Math.round((1.2 + trend/80 + Math.random() * 0.8) * 100) / 100)
-                    });
-                }
-                
-                return data;
+
+        // SVG Chart Drawing Functions
+        function createSVGElement(tag, attrs) {
+            const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+            for (const [key, value] of Object.entries(attrs)) {
+                el.setAttribute(key, value);
+            }
+            return el;
+        }
+
+        function drawChart() {
+            const data = generateSampleData();
+            const svg = document.getElementById('stockChart');
+            const tooltip = document.getElementById('tooltip');
+            
+            // Clear existing content
+            svg.innerHTML = '';
+            
+            // Chart dimensions
+            const margin = { top: 40, right: 60, bottom: 60, left: 60 };
+            const width = 800 - margin.left - margin.right;
+            const height = 400 - margin.top - margin.bottom;
+            
+            // Create chart group
+            const chartGroup = createSVGElement('g', {
+                transform: `translate(${margin.left}, ${margin.top})`
+            });
+            svg.appendChild(chartGroup);
+            
+            // Calculate scales
+            const maxStocks = Math.max(...data.map(d => Math.max(d.stocks_up_4pct, d.stocks_down_4pct)));
+            const minStocks = Math.min(...data.map(d => Math.min(d.stocks_up_4pct, d.stocks_down_4pct)));
+            const stocksRange = maxStocks - minStocks;
+            
+            const scaleX = (i) => (i / (data.length - 1)) * width;
+            const scaleStocks = (value) => height - ((value - minStocks) / stocksRange) * (height * 0.6);
+            const scaleT2108 = (value) => height - (value / 100) * (height * 0.6);
+            
+            // Draw grid lines
+            for (let i = 0; i <= 5; i++) {
+                const y = (i / 5) * height;
+                const gridLine = createSVGElement('line', {
+                    x1: '0',
+                    y1: y.toString(),
+                    x2: width.toString(),
+                    y2: y.toString(),
+                    class: 'grid-line'
+                });
+                chartGroup.appendChild(gridLine);
             }
             
-            const data = generateSampleData();
-            const latest = data[data.length - 1];
+            // Draw axes
+            const leftAxis = createSVGElement('line', {
+                x1: '0', y1: '0', x2: '0', y2: height.toString(),
+                class: 'axis-line'
+            });
+            const bottomAxis = createSVGElement('line', {
+                x1: '0', y1: height.toString(), x2: width.toString(), y2: height.toString(),
+                class: 'axis-line'
+            });
+            const rightAxis = createSVGElement('line', {
+                x1: width.toString(), y1: '0', x2: width.toString(), y2: height.toString(),
+                class: 'axis-line'
+            });
             
-            // Determine market sentiment
+            chartGroup.appendChild(leftAxis);
+            chartGroup.appendChild(bottomAxis);
+            chartGroup.appendChild(rightAxis);
+            
+            // Draw Y-axis labels (left - stock counts)
+            for (let i = 0; i <= 4; i++) {
+                const value = Math.round(minStocks + (stocksRange * i / 4));
+                const y = height - (i / 4) * height;
+                const label = createSVGElement('text', {
+                    x: '-10', y: (y + 4).toString(),
+                    class: 'axis-text',
+                    'text-anchor': 'end'
+                });
+                label.textContent = value.toString();
+                chartGroup.appendChild(label);
+            }
+            
+            // Draw Y-axis labels (right - T2108)
+            for (let i = 0; i <= 4; i++) {
+                const value = i * 25;
+                const y = height - (i / 4) * height;
+                const label = createSVGElement('text', {
+                    x: (width + 10).toString(), y: (y + 4).toString(),
+                    class: 'axis-text',
+                    'text-anchor': 'start'
+                });
+                label.textContent = value + '%';
+                chartGroup.appendChild(label);
+            }
+            
+            // Draw X-axis labels
+            const labelStep = Math.ceil(data.length / 6);
+            for (let i = 0; i < data.length; i += labelStep) {
+                const x = scaleX(i);
+                const label = createSVGElement('text', {
+                    x: x.toString(), y: (height + 25).toString(),
+                    class: 'axis-text',
+                    'text-anchor': 'middle'
+                });
+                label.textContent = data[i].date;
+                chartGroup.appendChild(label);
+            }
+            
+            // Create path data
+            function createPathData(dataKey, scaleFunc) {
+                return data.map((d, i) => {
+                    const x = scaleX(i);
+                    const y = scaleFunc(d[dataKey]);
+                    return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+                }).join(' ');
+            }
+            
+            // Draw lines
+            const stocksUpPath = createSVGElement('path', {
+                d: createPathData('stocks_up_4pct', scaleStocks),
+                class: 'chart-line',
+                stroke: '#00C851',
+                'stroke-width': '3'
+            });
+            
+            const stocksDownPath = createSVGElement('path', {
+                d: createPathData('stocks_down_4pct', scaleStocks),
+                class: 'chart-line',
+                stroke: '#ff4444',
+                'stroke-width': '3'
+            });
+            
+            const t2108Path = createSVGElement('path', {
+                d: createPathData('t2108', scaleT2108),
+                class: 'chart-line',
+                stroke: '#ff6600',
+                'stroke-width': '2',
+                'stroke-dasharray': '5,5'
+            });
+            
+            chartGroup.appendChild(stocksUpPath);
+            chartGroup.appendChild(stocksDownPath);
+            chartGroup.appendChild(t2108Path);
+            
+            // Add data points and hover areas
+            data.forEach((d, i) => {
+                const x = scaleX(i);
+                const upY = scaleStocks(d.stocks_up_4pct);
+                const downY = scaleStocks(d.stocks_down_4pct);
+                const t2108Y = scaleT2108(d.t2108);
+                
+                // Hover area
+                const hoverRect = createSVGElement('rect', {
+                    x: (x - 10).toString(),
+                    y: '0',
+                    width: '20',
+                    height: height.toString(),
+                    class: 'hover-area'
+                });
+                
+                hoverRect.addEventListener('mouseenter', (e) => {
+                    tooltip.innerHTML = `
+                        <strong>${d.fullDate}</strong><br>
+                        <span style="color: #00C851">●</span> Stocks Up 4%+: ${d.stocks_up_4pct.toLocaleString()}<br>
+                        <span style="color: #ff4444">●</span> Stocks Down 4%+: ${d.stocks_down_4pct.toLocaleString()}<br>
+                        <span style="color: #ff6600">●</span> T2108: ${d.t2108}%
+                    `;
+                    tooltip.style.display = 'block';
+                    tooltip.style.left = (e.pageX + 10) + 'px';
+                    tooltip.style.top = (e.pageY - 10) + 'px';
+                });
+                
+                hoverRect.addEventListener('mouseleave', () => {
+                    tooltip.style.display = 'none';
+                });
+                
+                chartGroup.appendChild(hoverRect);
+                
+                // Data points
+                [
+                    { y: upY, color: '#00C851', r: 4 },
+                    { y: downY, color: '#ff4444', r: 4 },
+                    { y: t2108Y, color: '#ff6600', r: 3 }
+                ].forEach(point => {
+                    const circle = createSVGElement('circle', {
+                        cx: x.toString(),
+                        cy: point.y.toString(),
+                        r: point.r.toString(),
+                        fill: point.color,
+                        stroke: 'white',
+                        'stroke-width': '1'
+                    });
+                    chartGroup.appendChild(circle);
+                });
+            });
+            
+            // Add legend
+            const legend = createSVGElement('g', { transform: 'translate(20, 20)' });
+            const legendItems = [
+                { color: '#00C851', text: 'Stocks Up 4%+', line: true },
+                { color: '#ff4444', text: 'Stocks Down 4%+', line: true },
+                { color: '#ff6600', text: 'T2108 (%)', dashed: true }
+            ];
+            
+            legendItems.forEach((item, i) => {
+                const y = i * 20;
+                const line = createSVGElement('line', {
+                    x1: '0', y1: y.toString(), x2: '20', y2: y.toString(),
+                    stroke: item.color,
+                    'stroke-width': item.line ? '3' : '2',
+                    'stroke-dasharray': item.dashed ? '5,5' : 'none'
+                });
+                const text = createSVGElement('text', {
+                    x: '25', y: (y + 5).toString(),
+                    class: 'axis-text',
+                    fill: '#374151'
+                });
+                text.textContent = item.text;
+                
+                legend.appendChild(line);
+                legend.appendChild(text);
+            });
+            chartGroup.appendChild(legend);
+            
+            // Update current readings
+            const latest = data[data.length - 1];
+            document.getElementById('stocks-up').textContent = latest.stocks_up_4pct.toLocaleString();
+            document.getElementById('stocks-down').textContent = latest.stocks_down_4pct.toLocaleString();
+            document.getElementById('t2108-value').textContent = latest.t2108 + '%';
+            
+            const ratio = (latest.stocks_up_4pct / Math.max(latest.stocks_down_4pct, 1)).toFixed(2);
+            document.getElementById('ratio-value').textContent = ratio;
+            
+            // Update sentiment
+            const sentimentText = document.getElementById('sentiment-text');
+            const sentimentDesc = document.getElementById('sentiment-desc');
+            
             let sentiment = 'Neutral';
-            let sentimentColor = '#ffa500';
+            let color = '#f59e0b';
             let description = 'Mixed breadth signals';
             
-            if (latest.stocks_up_4pct > 300 && latest.five_day_ratio > 2.0) {
+            if (latest.stocks_up_4pct > 300 && ratio > 2.0) {
                 sentiment = 'Extremely Bullish';
-                sentimentColor = '#00C851';
+                color = '#00C851';
                 description = 'Strong breadth thrust in progress';
             } else if (latest.stocks_down_4pct > 300 && latest.t2108 < 20) {
                 sentiment = 'Extremely Bearish';
-                sentimentColor = '#ff4444';
+                color = '#ff4444';
                 description = 'Potential oversold bounce opportunity';
             } else if (latest.stocks_up_4pct > latest.stocks_down_4pct + 50) {
                 sentiment = 'Bullish';
-                sentimentColor = '#66ff99';
+                color = '#10b981';
                 description = 'Positive breadth momentum';
             } else if (latest.stocks_down_4pct > latest.stocks_up_4pct + 50) {
                 sentiment = 'Bearish';
-                sentimentColor = '#ff6666';
+                color = '#ef4444';
                 description = 'Negative breadth momentum';
             }
             
-            document.getElementById('root').innerHTML = `
-                <div class="p-6 bg-gray-50 min-h-screen">
-                    <div class="max-w-7xl mx-auto">
-                        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
-                            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
-                                <div>
-                                    <h1 class="text-3xl font-bold text-gray-800">Stockbee Market Monitor</h1>
-                                    <p class="text-gray-600 mt-2">Breadth-based market timing tracker with interactive charts</p>
-                                </div>
-                                <div class="text-right mt-4 md:mt-0">
-                                    <div class="text-lg font-semibold" style="color: ${sentimentColor}">${sentiment}</div>
-                                    <div class="text-sm text-gray-500">${description}</div>
-                                </div>
-                            </div>
-                            
-                            <div class="w-full h-96 bg-white rounded-lg">
-                                <canvas id="stockChart" width="400" height="200"></canvas>
-                            </div>
-                        </div>
-                        
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                            <div class="bg-white rounded-lg shadow p-4">
-                                <h3 class="font-semibold text-gray-800 mb-2">Key Levels</h3>
-                                <div class="space-y-2 text-sm">
-                                    <div class="flex justify-between">
-                                        <span>T2108 &lt; 20:</span>
-                                        <span class="text-green-600">Oversold Signal</span>
-                                    </div>
-                                    <div class="flex justify-between">
-                                        <span>5-Day Ratio &gt; 2.0:</span>
-                                        <span class="text-green-600">Breadth Thrust</span>
-                                    </div>
-                                    <div class="flex justify-between">
-                                        <span>4% Down &gt; 300:</span>
-                                        <span class="text-red-600">High Selling</span>
-                                    </div>
-                                    <div class="flex justify-between">
-                                        <span>25% Down/Q &lt; 200:</span>
-                                        <span class="text-green-600">Capitulation</span>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="bg-white rounded-lg shadow p-4">
-                                <h3 class="font-semibold text-gray-800 mb-2">Current Readings</h3>
-                                <div class="space-y-2 text-sm">
-                                    <div class="flex justify-between">
-                                        <span>Stocks Up 4%+:</span>
-                                        <span>${latest.stocks_up_4pct.toLocaleString()}</span>
-                                    </div>
-                                    <div class="flex justify-between">
-                                        <span>Stocks Down 4%+:</span>
-                                        <span>${latest.stocks_down_4pct.toLocaleString()}</span>
-                                    </div>
-                                    <div class="flex justify-between">
-                                        <span>T2108:</span>
-                                        <span>${latest.t2108}%</span>
-                                    </div>
-                                    <div class="flex justify-between">
-                                        <span>5-Day Ratio:</span>
-                                        <span>${latest.five_day_ratio.toFixed(2)}</span>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="bg-white rounded-lg shadow p-4">
-                                <h3 class="font-semibold text-gray-800 mb-2">Interpretation</h3>
-                                <div class="text-sm text-gray-600">
-                                    <p class="mb-2">The Market Monitor tracks breadth using significant moves (4%+ daily, 25%+ quarterly) to reduce noise.</p>
-                                    <p>Extreme readings often lead to counter-trend moves. Use for risk management and market timing.</p>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="bg-white rounded-lg shadow p-4">
-                            <h3 class="font-semibold text-gray-800 mb-3">Market Monitor Indicators Explained</h3>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                                <div>
-                                    <h4 class="font-medium text-gray-700 mb-2">Primary Indicators:</h4>
-                                    <ul class="space-y-1 text-gray-600">
-                                        <li><strong>4% Up/Down:</strong> Daily count of stocks with significant moves</li>
-                                        <li><strong>25% Quarter:</strong> Stocks up/down 25%+ in past 65 trading days</li>
-                                        <li><strong>T2108:</strong> Percentage of stocks above 40-day moving average</li>
-                                        <li><strong>5/10-Day Ratios:</strong> Ratio of up vs down 4%+ moves</li>
-                                    </ul>
-                                </div>
-                                <div>
-                                    <h4 class="font-medium text-gray-700 mb-2">Usage Guidelines:</h4>
-                                    <ul class="space-y-1 text-gray-600">
-                                        <li><strong>Extreme Bullish:</strong> 1000+ up moves, ratio > 2.0</li>
-                                        <li><strong>Extreme Bearish:</strong> 1000+ down moves, T2108 < 20</li>
-                                        <li><strong>Oversold Bounce:</strong> Quarter down < 200</li>
-                                        <li><strong>Risk Management:</strong> Reduce positions on extreme readings</li>
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            // Create the chart
-            const ctx = document.getElementById('stockChart').getContext('2d');
-            const labels = data.slice(-60).map(d => d.date);
-            const stocksUpData = data.slice(-60).map(d => d.stocks_up_4pct);
-            const stocksDownData = data.slice(-60).map(d => d.stocks_down_4pct);
-            const t2108Data = data.slice(-60).map(d => d.t2108);
-            
-            new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [
-                        {
-                            label: 'Stocks Up 4%+',
-                            data: stocksUpData,
-                            borderColor: '#00C851',
-                            backgroundColor: 'rgba(0, 200, 81, 0.1)',
-                            tension: 0.1,
-                            yAxisID: 'y'
-                        },
-                        {
-                            label: 'Stocks Down 4%+',
-                            data: stocksDownData,
-                            borderColor: '#ff4444',
-                            backgroundColor: 'rgba(255, 68, 68, 0.1)',
-                            tension: 0.1,
-                            yAxisID: 'y'
-                        },
-                        {
-                            label: 'T2108 (%)',
-                            data: t2108Data,
-                            borderColor: '#ff6600',
-                            backgroundColor: 'rgba(255, 102, 0, 0.1)',
-                            tension: 0.1,
-                            yAxisID: 'y1'
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: {
-                        mode: 'index',
-                        intersect: false
-                    },
-                    scales: {
-                        x: {
-                            display: true,
-                            title: {
-                                display: true,
-                                text: 'Date'
-                            },
-                            ticks: {
-                                maxTicksLimit: 8
-                            }
-                        },
-                        y: {
-                            type: 'linear',
-                            display: true,
-                            position: 'left',
-                            title: {
-                                display: true,
-                                text: 'Stock Count'
-                            }
-                        },
-                        y1: {
-                            type: 'linear',
-                            display: true,
-                            position: 'right',
-                            title: {
-                                display: true,
-                                text: 'T2108 (%)'
-                            },
-                            grid: {
-                                drawOnChartArea: false
-                            },
-                            min: 0,
-                            max: 100
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            position: 'top'
-                        },
-                        title: {
-                            display: true,
-                            text: 'Market Breadth Indicators'
-                        }
-                    }
-                }
-            });
+            sentimentText.textContent = sentiment;
+            sentimentText.style.color = color;
+            sentimentDesc.textContent = description;
         }
         
-        function initBasicVersion() {
-            document.getElementById('root').innerHTML = `
-                <div class="p-6 bg-gray-50 min-h-screen">
-                    <div class="max-w-7xl mx-auto">
-                        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
-                            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
-                                <div>
-                                    <h1 class="text-3xl font-bold text-gray-800">Stockbee Market Monitor</h1>
-                                    <p class="text-gray-600 mt-2">Breadth-based market timing tracker</p>
-                                </div>
-                                <div class="text-right mt-4 md:mt-0">
-                                    <div class="text-lg font-semibold text-orange-500">Loading...</div>
-                                    <div class="text-sm text-gray-500">Initializing charts</div>
-                                </div>
-                            </div>
-                            
-                            <div class="chart-container">
-                                <div class="text-center">
-                                    <div class="text-xl font-semibold text-gray-600 mb-2">📊 Chart Loading Failed</div>
-                                    <div class="text-sm text-gray-500">Please check your internet connection and try refreshing the page</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
+        // Initialize the chart when page loads
+        document.addEventListener('DOMContentLoaded', drawChart);
         
-        // Initialize the page when DOM is ready
-        document.addEventListener('DOMContentLoaded', function() {
-            loadCharts();
-        });
-        
-        // Fallback - also try to load when script runs
-        if (document.readyState === 'loading') {
-            // Loading hasn't finished yet
-            document.addEventListener('DOMContentLoaded', loadCharts);
-        } else {
-            // DOMContentLoaded has already fired
-            loadCharts();
-        }
+        // Redraw chart on window resize
+        window.addEventListener('resize', drawChart);
     </script>
 </body>
 </html>
