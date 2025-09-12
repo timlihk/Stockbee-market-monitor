@@ -388,7 +388,13 @@
                     }
                 }
                 
-                marketData = data.reverse(); // Most recent first
+                // Sort data by date (most recent first)
+                marketData = data.sort((a, b) => {
+                    const dateA = new Date(a.Date);
+                    const dateB = new Date(b.Date);
+                    return dateB - dateA; // Descending order (newest first)
+                });
+                
                 lastDataHash = generateDataHash(marketData);
                 
                 // Debug: Log data range
@@ -396,6 +402,7 @@
                     console.log(`Loaded ${marketData.length} records`);
                     console.log(`Latest date: ${marketData[0].Date}`);
                     console.log(`Oldest date: ${marketData[marketData.length - 1].Date}`);
+                    console.log('First 3 records by date:', marketData.slice(0, 3).map(d => ({ date: d.Date, upStocks: d['Number of stocks up 4% plus today'], t2108: d['T2108'] })));
                 }
                 
                 document.getElementById('loading-spinner').style.display = 'none';
@@ -497,10 +504,18 @@
         // Update data information display
         function updateDataInfo() {
             if (marketData.length > 0) {
-                const latestDate = marketData[0].Date;
+                // Find the most recent valid date
+                let latestDate = null;
+                for (let i = 0; i < Math.min(marketData.length, 5); i++) {
+                    if (marketData[i].Date) {
+                        latestDate = marketData[i].Date;
+                        break;
+                    }
+                }
+                
                 const oldestDate = marketData[marketData.length - 1].Date;
                 
-                document.getElementById('last-update').textContent = latestDate;
+                document.getElementById('last-update').textContent = latestDate || 'Unknown';
                 document.getElementById('total-records').textContent = marketData.length.toLocaleString();
                 
                 // Add date range info if we have multiple records
@@ -517,7 +532,23 @@
         function updateCurrentReadings() {
             if (marketData.length === 0) return;
             
-            const latest = marketData[0];
+            // Find the most recent valid data point (in case first entries have missing data)
+            let latest = null;
+            for (let i = 0; i < Math.min(marketData.length, 5); i++) {
+                const dataPoint = marketData[i];
+                if (dataPoint.Date && (dataPoint['Number of stocks up 4% plus today'] !== undefined || 
+                    dataPoint['T2108'] !== undefined || dataPoint['5 day ratio'] !== undefined)) {
+                    latest = dataPoint;
+                    break;
+                }
+            }
+            
+            if (!latest) {
+                console.warn('No valid recent data found for current readings');
+                return;
+            }
+            
+            console.log('Latest data point for current readings:', latest);
             const container = document.getElementById('current-readings');
             
             const readings = [
