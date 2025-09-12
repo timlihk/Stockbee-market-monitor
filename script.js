@@ -1,706 +1,3 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stockbee Market Monitor</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
-    <style>
-        body {
-            margin: 0;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-                'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-                sans-serif;
-            background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
-            min-height: 100vh;
-        }
-        .chart-container {
-            position: relative;
-            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #e2e8f0 100%);
-            border: 1px solid rgba(226, 232, 240, 0.5);
-            box-shadow: 
-                0 10px 25px -3px rgba(0, 0, 0, 0.1),
-                0 4px 6px -2px rgba(0, 0, 0, 0.05),
-                inset 0 1px 0 rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(8px);
-        }
-        .indicator-checkbox {
-            appearance: none;
-            width: 16px;
-            height: 16px;
-            border: 2px solid #d1d5db;
-            border-radius: 3px;
-            background: white;
-            cursor: pointer;
-            position: relative;
-        }
-        .indicator-checkbox:checked {
-            background: #3b82f6;
-            border-color: #3b82f6;
-        }
-        .indicator-checkbox:checked::after {
-            content: '✓';
-            position: absolute;
-            color: white;
-            font-size: 10px;
-            top: -1px;
-            left: 2px;
-        }
-
-        /* Enhanced Tooltip Styling with Dark/Light Theme Support */
-        .custom-tooltip {
-            position: absolute;
-            pointer-events: none;
-            z-index: 1000;
-            opacity: 0;
-            transform: translateY(10px);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            max-width: 320px;
-            min-width: 200px;
-        }
-
-        .custom-tooltip.show {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        .custom-tooltip.slide-in {
-            animation: slideInTooltip 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        @keyframes slideInTooltip {
-            from {
-                opacity: 0;
-                transform: translateY(10px) scale(0.95);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0) scale(1);
-            }
-        }
-
-        .custom-tooltip.fade-out {
-            animation: fadeOutTooltip 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        @keyframes fadeOutTooltip {
-            from {
-                opacity: 1;
-                transform: translateY(0) scale(1);
-            }
-            to {
-                opacity: 0;
-                transform: translateY(-5px) scale(0.95);
-            }
-        }
-
-        /* Light Theme Tooltip */
-        .custom-tooltip.light {
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.95) 100%);
-            border: 1px solid rgba(226, 232, 240, 0.8);
-            color: #1f2937;
-            box-shadow: 
-                0 20px 25px -5px rgba(0, 0, 0, 0.1),
-                0 10px 10px -5px rgba(0, 0, 0, 0.04);
-            backdrop-filter: blur(12px);
-        }
-
-        /* Dark Theme Tooltip */
-        .custom-tooltip.dark {
-            background: linear-gradient(135deg, rgba(17, 24, 39, 0.95) 0%, rgba(31, 41, 55, 0.95) 100%);
-            border: 1px solid rgba(75, 85, 99, 0.6);
-            color: #f9fafb;
-            box-shadow: 
-                0 20px 25px -5px rgba(0, 0, 0, 0.4),
-                0 10px 10px -5px rgba(0, 0, 0, 0.2);
-            backdrop-filter: blur(12px);
-        }
-
-        .tooltip-header {
-            padding: 12px 16px 8px 16px;
-            border-bottom: 1px solid rgba(226, 232, 240, 0.3);
-            font-weight: 600;
-            font-size: 14px;
-        }
-
-        .dark .tooltip-header {
-            border-bottom-color: rgba(75, 85, 99, 0.4);
-        }
-
-        .tooltip-body {
-            padding: 8px 16px 12px 16px;
-        }
-
-        .tooltip-series-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 6px 0;
-            border-bottom: 1px solid rgba(226, 232, 240, 0.2);
-        }
-
-        .dark .tooltip-series-item {
-            border-bottom-color: rgba(75, 85, 99, 0.3);
-        }
-
-        .tooltip-series-item:last-child {
-            border-bottom: none;
-        }
-
-        .series-info {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .series-swatch {
-            width: 12px;
-            height: 12px;
-            border-radius: 3px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            flex-shrink: 0;
-        }
-
-        .series-name {
-            font-size: 13px;
-            font-weight: 500;
-        }
-
-        .series-value {
-            font-size: 13px;
-            font-weight: 700;
-            font-variant-numeric: tabular-nums;
-        }
-
-        .tooltip-summary {
-            margin-top: 8px;
-            padding-top: 8px;
-            border-top: 1px solid rgba(226, 232, 240, 0.3);
-            font-size: 12px;
-            opacity: 0.8;
-        }
-
-        .dark .tooltip-summary {
-            border-top-color: rgba(75, 85, 99, 0.4);
-        }
-
-        .tooltip-arrow {
-            position: absolute;
-            width: 0;
-            height: 0;
-            border-left: 8px solid transparent;
-            border-right: 8px solid transparent;
-        }
-
-        .tooltip-arrow.top {
-            top: -8px;
-            left: 50%;
-            transform: translateX(-50%);
-            border-bottom: 8px solid rgba(255, 255, 255, 0.95);
-        }
-
-        .tooltip-arrow.bottom {
-            bottom: -8px;
-            left: 50%;
-            transform: translateX(-50%);
-            border-top: 8px solid rgba(255, 255, 255, 0.95);
-        }
-
-        .dark .tooltip-arrow.top {
-            border-bottom-color: rgba(17, 24, 39, 0.95);
-        }
-
-        .dark .tooltip-arrow.bottom {
-            border-top-color: rgba(17, 24, 39, 0.95);
-        }
-
-        /* Chart Interaction Enhancements */
-        .chart-container canvas {
-            transition: filter 0.2s ease-in-out;
-        }
-
-        /* Vertical crosshair region styling */
-        .crosshair-region {
-            position: absolute;
-            background: linear-gradient(90deg, 
-                rgba(59, 130, 246, 0.08) 0%, 
-                rgba(59, 130, 246, 0.15) 50%, 
-                rgba(59, 130, 246, 0.08) 100%
-            );
-            border: 1px solid rgba(59, 130, 246, 0.3);
-            border-left: 2px solid rgba(59, 130, 246, 0.6);
-            border-right: 2px solid rgba(59, 130, 246, 0.6);
-            pointer-events: none;
-            opacity: 0;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            backdrop-filter: blur(1px);
-            z-index: 5;
-        }
-
-        .dark .crosshair-region {
-            background: linear-gradient(90deg, 
-                rgba(99, 102, 241, 0.12) 0%, 
-                rgba(99, 102, 241, 0.20) 50%, 
-                rgba(99, 102, 241, 0.12) 100%
-            );
-            border-color: rgba(99, 102, 241, 0.4);
-            border-left-color: rgba(99, 102, 241, 0.7);
-            border-right-color: rgba(99, 102, 241, 0.7);
-        }
-
-        .crosshair-region.show {
-            opacity: 1;
-        }
-
-        /* Hover point animations */
-        @keyframes scaleHoverPoint {
-            from {
-                transform: scale(1);
-            }
-            to {
-                transform: scale(1.4);
-            }
-        }
-
-        @keyframes pulseHoverPoint {
-            0% {
-                transform: scale(1);
-                opacity: 1;
-            }
-            50% {
-                transform: scale(1.2);
-                opacity: 0.8;
-            }
-            100% {
-                transform: scale(1);
-                opacity: 1;
-            }
-        }
-
-        /* Series dimming effects */
-        .chart-series-dimmed {
-            transition: opacity 0.3s ease-in-out !important;
-            opacity: 0.3 !important;
-        }
-
-        .chart-series-emphasized {
-            transition: all 0.3s ease-in-out !important;
-            filter: drop-shadow(0 0 8px currentColor) !important;
-        }
-
-        /* Loading states for smooth interactions */
-        .chart-loading {
-            position: relative;
-        }
-
-        .chart-loading::before {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 20px;
-            height: 20px;
-            border: 2px solid rgba(59, 130, 246, 0.2);
-            border-top: 2px solid rgba(59, 130, 246, 0.8);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            z-index: 10;
-        }
-
-        @keyframes spin {
-            0% { transform: translate(-50%, -50%) rotate(0deg); }
-            100% { transform: translate(-50%, -50%) rotate(360deg); }
-        }
-        .loading-spinner {
-            border: 3px solid #f3f4f6;
-            border-top: 3px solid #3b82f6;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-    </style>
-</head>
-<body>
-    <div id="root">
-        <div class="p-6 bg-gray-50 min-h-screen">
-            <div class="max-w-7xl mx-auto">
-                <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
-                    <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6">
-                        <div>
-                            <h1 class="text-3xl font-bold text-gray-800">Stockbee Market Monitor</h1>
-                            <p class="text-gray-600 mt-2">Real-time breadth analysis with customizable indicators</p>
-                        </div>
-                        <div class="text-right mt-4 lg:mt-0" id="sentiment-display">
-                            <div class="text-lg font-semibold" id="sentiment-text">Loading...</div>
-                            <div class="text-sm text-gray-500" id="sentiment-desc">Analyzing live market data</div>
-                        </div>
-                    </div>
-                    
-                    <!-- Indicator Selection Panel -->
-                    <div class="bg-gray-50 rounded-lg p-4 mb-6">
-                        <div class="flex items-center justify-between mb-3">
-                            <h3 class="text-lg font-semibold text-gray-800">Select Indicators to Display</h3>
-                            <div class="flex items-center gap-2">
-                                <div class="loading-spinner" id="loading-spinner" style="display: none;"></div>
-                                <div class="flex items-center gap-2 text-xs">
-                                    <span id="data-status" class="px-2 py-1 rounded bg-gray-200 text-gray-600">Checking...</span>
-                                    <span id="last-check" class="text-gray-500">--</span>
-                                </div>
-                                <button id="refresh-data" class="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
-                                    Refresh Data
-                                </button>
-                                <button id="auto-refresh-toggle" class="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700">
-                                    Auto: OFF
-                                </button>
-                                <button id="theme-toggle" class="px-3 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700 ml-2" title="Toggle Dark/Light Theme">
-                                    🌙
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div class="space-y-2">
-                                <h4 class="font-medium text-gray-700">Primary Breadth Indicators</h4>
-                                <div class="space-y-2" id="primary-indicators">
-                                    <!-- Will be populated by JavaScript -->
-                                </div>
-                            </div>
-                            
-                            <div class="space-y-2">
-                                <h4 class="font-medium text-gray-700">Secondary Breadth Indicators</h4>
-                                <div class="space-y-2" id="secondary-indicators">
-                                    <!-- Will be populated by JavaScript -->
-                                </div>
-                            </div>
-                            
-                            <div class="space-y-2">
-                                <h4 class="font-medium text-gray-700">Market Indicators</h4>
-                                <div class="space-y-2" id="market-indicators">
-                                    <!-- Will be populated by JavaScript -->
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="flex flex-wrap gap-4 mt-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Chart View</label>
-                                <select id="chart-view" class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                    <option value="overview">Market Overview</option>
-                                    <option value="breadth">Daily Breadth</option>
-                                    <option value="ratios">Ratios & T2108</option>
-                                    <option value="momentum">Monthly Momentum</option>
-                                    <option value="analysis">Market Analysis</option>
-                                </select>
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Time Range</label>
-                                <select id="time-range" class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                    <option value="30">1 Month</option>
-                                    <option value="60">2 Months</option>
-                                    <option value="90">3 Months</option>
-                                    <option value="180" selected>6 Months</option>
-                                    <option value="0">All Data</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="chart-container bg-white rounded-lg border p-4">
-                        <!-- SVG Gradient Definitions -->
-                        <svg width="0" height="0" style="position: absolute;">
-                            <defs>
-                                <!-- Primary Breadth Gradients -->
-                                <linearGradient id="emeraldGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                    <stop offset="0%" style="stop-color:#6ee7b7;stop-opacity:1" />
-                                    <stop offset="50%" style="stop-color:#10b981;stop-opacity:1" />
-                                    <stop offset="100%" style="stop-color:#059669;stop-opacity:1" />
-                                </linearGradient>
-                                
-                                <linearGradient id="roseGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                    <stop offset="0%" style="stop-color:#fda4af;stop-opacity:1" />
-                                    <stop offset="50%" style="stop-color:#f43f5e;stop-opacity:1" />
-                                    <stop offset="100%" style="stop-color:#e11d48;stop-opacity:1" />
-                                </linearGradient>
-                                
-                                <linearGradient id="violetGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                    <stop offset="0%" style="stop-color:#c4b5fd;stop-opacity:1" />
-                                    <stop offset="50%" style="stop-color:#8b5cf6;stop-opacity:1" />
-                                    <stop offset="100%" style="stop-color:#7c3aed;stop-opacity:1" />
-                                </linearGradient>
-                                
-                                <linearGradient id="amberGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                    <stop offset="0%" style="stop-color:#fcd34d;stop-opacity:1" />
-                                    <stop offset="50%" style="stop-color:#f59e0b;stop-opacity:1" />
-                                    <stop offset="100%" style="stop-color:#d97706;stop-opacity:1" />
-                                </linearGradient>
-                                
-                                <!-- Secondary Breadth Gradients -->
-                                <linearGradient id="skyGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                    <stop offset="0%" style="stop-color:#7dd3fc;stop-opacity:1" />
-                                    <stop offset="50%" style="stop-color:#0ea5e9;stop-opacity:1" />
-                                    <stop offset="100%" style="stop-color:#0284c7;stop-opacity:1" />
-                                </linearGradient>
-                                
-                                <linearGradient id="redGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                    <stop offset="0%" style="stop-color:#f87171;stop-opacity:1" />
-                                    <stop offset="50%" style="stop-color:#dc2626;stop-opacity:1" />
-                                    <stop offset="100%" style="stop-color:#b91c1c;stop-opacity:1" />
-                                </linearGradient>
-                                
-                                <!-- Market Indicator Gradients -->
-                                <linearGradient id="orangeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                    <stop offset="0%" style="stop-color:#fb923c;stop-opacity:1" />
-                                    <stop offset="50%" style="stop-color:#ea580c;stop-opacity:1" />
-                                    <stop offset="100%" style="stop-color:#c2410c;stop-opacity:1" />
-                                </linearGradient>
-                                
-                                <linearGradient id="indigoGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                    <stop offset="0%" style="stop-color:#a5b4fc;stop-opacity:1" />
-                                    <stop offset="50%" style="stop-color:#6366f1;stop-opacity:1" />
-                                    <stop offset="100%" style="stop-color:#4f46e5;stop-opacity:1" />
-                                </linearGradient>
-                                
-                                <linearGradient id="limeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                    <stop offset="0%" style="stop-color:#a3e635;stop-opacity:1" />
-                                    <stop offset="50%" style="stop-color:#65a30d;stop-opacity:1" />
-                                    <stop offset="100%" style="stop-color:#4d7c0f;stop-opacity:1" />
-                                </linearGradient>
-                                
-                                <!-- Vertical Fill Gradients (for area fills) -->
-                                <linearGradient id="emeraldFill" x1="0%" y1="0%" x2="0%" y2="100%">
-                                    <stop offset="0%" style="stop-color:#10b981;stop-opacity:0.4" />
-                                    <stop offset="100%" style="stop-color:#10b981;stop-opacity:0.1" />
-                                </linearGradient>
-                                
-                                <linearGradient id="roseFill" x1="0%" y1="0%" x2="0%" y2="100%">
-                                    <stop offset="0%" style="stop-color:#f43f5e;stop-opacity:0.4" />
-                                    <stop offset="100%" style="stop-color:#f43f5e;stop-opacity:0.1" />
-                                </linearGradient>
-                                
-                                <linearGradient id="skyFill" x1="0%" y1="0%" x2="0%" y2="100%">
-                                    <stop offset="0%" style="stop-color:#0ea5e9;stop-opacity:0.4" />
-                                    <stop offset="100%" style="stop-color:#0ea5e9;stop-opacity:0.1" />
-                                </linearGradient>
-                            </defs>
-                        </svg>
-                        
-                        <div class="w-full h-64 sm:h-72 md:h-80 lg:h-96 xl:h-[500px] relative">
-                            <canvas id="stockChart" class="w-full h-full"></canvas>
-                            
-                            <!-- Vertical Crosshair Region -->
-                            <div id="crosshair-region" class="crosshair-region"></div>
-                            
-                            <!-- Custom Tooltip Container -->
-                            <div id="custom-tooltip" class="custom-tooltip light rounded-lg">
-                                <div class="tooltip-arrow top"></div>
-                                <div class="tooltip-header">
-                                    <span id="tooltip-date"></span>
-                                </div>
-                                <div class="tooltip-body">
-                                    <div id="tooltip-series"></div>
-                                    <div id="tooltip-summary" class="tooltip-summary"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-                    <div class="bg-white rounded-lg shadow p-4">
-                        <h3 class="font-semibold text-gray-800 mb-2">Current Readings</h3>
-                        <div class="space-y-2 text-sm" id="current-readings">
-                            <!-- Will be populated by JavaScript -->
-                        </div>
-                    </div>
-                    
-                    <div class="bg-white rounded-lg shadow p-4">
-                        <h3 class="font-semibold text-gray-800 mb-2">Key Levels</h3>
-                        <div class="space-y-2 text-sm">
-                            <div class="flex justify-between">
-                                <span>T2108 &lt; 20:</span>
-                                <span class="text-green-600">Oversold Signal</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span>5-Day Ratio &gt; 2.0:</span>
-                                <span class="text-green-600">Breadth Thrust</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span>4% Down &gt; 300:</span>
-                                <span class="text-red-600">High Selling</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span>25% Down/Q &lt; 200:</span>
-                                <span class="text-green-600">Capitulation</span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="bg-white rounded-lg shadow p-4">
-                        <h3 class="font-semibold text-gray-800 mb-2">Market Stats</h3>
-                        <div class="space-y-2 text-sm" id="market-stats">
-                            <!-- Will be populated by JavaScript -->
-                        </div>
-                    </div>
-                    
-                    <div class="bg-white rounded-lg shadow p-4">
-                        <h3 class="font-semibold text-gray-800 mb-2">Data Info</h3>
-                        <div class="space-y-2 text-sm" id="data-info">
-                            <div class="flex justify-between">
-                                <span>Last Update:</span>
-                                <span id="last-update">--</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span>Total Records:</span>
-                                <span id="total-records">--</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span>Date Range:</span>
-                                <span id="date-range" class="text-xs">--</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span>Data Source:</span>
-                                <span class="text-blue-600">Live Google Sheets</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-6">
-                    <div class="flex items-center">
-                        <div class="text-blue-600 mr-3">📊</div>
-                        <div>
-                            <h4 class="font-medium text-blue-800">Live Data Integration</h4>
-                            <p class="text-sm text-blue-700 mt-1">Charts display real market breadth data from your Google Sheets. Use the indicator checkboxes above to customize your view.</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Market Monitor Indicators Explained Section -->
-                <div class="mt-8 bg-white rounded-lg shadow p-6">
-                    <h2 class="text-2xl font-bold text-gray-800 mb-6">Market Monitor Indicators Explained</h2>
-                    
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        <!-- Primary Indicators -->
-                        <div>
-                            <h3 class="text-lg font-semibold text-gray-800 mb-4">Primary Indicators</h3>
-                            
-                            <div class="space-y-4">
-                                <div class="border-l-4 border-green-500 pl-4">
-                                    <h4 class="font-medium text-gray-800">4%+ Up Stocks</h4>
-                                    <p class="text-sm text-gray-600 mt-1">Number of stocks moving up 4% or more in a day. High numbers (&gt;300) indicate strong buying pressure and potential market strength.</p>
-                                </div>
-                                
-                                <div class="border-l-4 border-red-500 pl-4">
-                                    <h4 class="font-medium text-gray-800">4%+ Down Stocks</h4>
-                                    <p class="text-sm text-gray-600 mt-1">Number of stocks dropping 4% or more. Spikes above 300 often signal panic selling or capitulation, potentially marking market bottoms.</p>
-                                </div>
-                                
-                                <div class="border-l-4 border-purple-500 pl-4">
-                                    <h4 class="font-medium text-gray-800">Up/Down Ratio</h4>
-                                    <p class="text-sm text-gray-600 mt-1">Ratio of 4%+ up stocks to 4%+ down stocks. Values above 2.0 indicate strong breadth and bullish momentum.</p>
-                                </div>
-                                
-                                <div class="border-l-4 border-orange-500 pl-4">
-                                    <h4 class="font-medium text-gray-800">T2108 (McClellan)</h4>
-                                    <p class="text-sm text-gray-600 mt-1">Percentage of stocks above their 40-day moving average. Below 20 suggests oversold conditions; above 80 indicates overbought levels.</p>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Advanced Metrics -->
-                        <div>
-                            <h3 class="text-lg font-semibold text-gray-800 mb-4">Advanced Metrics</h3>
-                            
-                            <div class="space-y-4">
-                                <div class="border-l-4 border-blue-500 pl-4">
-                                    <h4 class="font-medium text-gray-800">5-Day Up/Down Ratio</h4>
-                                    <p class="text-sm text-gray-600 mt-1">Moving average of the daily ratio over 5 days. Smooths out daily volatility and helps identify sustained trends.</p>
-                                </div>
-                                
-                                <div class="border-l-4 border-yellow-500 pl-4">
-                                    <h4 class="font-medium text-gray-800">25% Down Quarterly</h4>
-                                    <p class="text-sm text-gray-600 mt-1">Stocks down 25%+ from quarterly highs. Values below 200 may indicate market resilience; spikes above 1000 suggest broad weakness.</p>
-                                </div>
-                                
-                                <div class="border-l-4 border-indigo-500 pl-4">
-                                    <h4 class="font-medium text-gray-800">Monthly Momentum</h4>
-                                    <p class="text-sm text-gray-600 mt-1">Longer-term trend analysis showing sustained market direction over weeks rather than days.</p>
-                                </div>
-                                
-                                <div class="border-l-4 border-teal-500 pl-4">
-                                    <h4 class="font-medium text-gray-800">Market Analysis View</h4>
-                                    <p class="text-sm text-gray-600 mt-1">Scatter plot analysis showing relationship between different breadth measures, helping identify market regime changes.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Usage Guidelines -->
-                    <div class="mt-8 bg-gray-50 rounded-lg p-6">
-                        <h3 class="text-lg font-semibold text-gray-800 mb-4">Usage Guidelines</h3>
-                        
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div class="text-center">
-                                <div class="bg-green-100 text-green-800 rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-3">
-                                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-                                    </svg>
-                                </div>
-                                <h4 class="font-medium text-gray-800">Bullish Signals</h4>
-                                <p class="text-sm text-gray-600 mt-2">4%+ Up &gt; 300, T2108 &lt; 20 (oversold bounce), 5-day ratio &gt; 2.0</p>
-                            </div>
-                            
-                            <div class="text-center">
-                                <div class="bg-red-100 text-red-800 rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-3">
-                                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
-                                    </svg>
-                                </div>
-                                <h4 class="font-medium text-gray-800">Bearish Signals</h4>
-                                <p class="text-sm text-gray-600 mt-2">4%+ Down &gt; 400, T2108 &gt; 80 (overbought), 25% Down/Q &gt; 1000</p>
-                            </div>
-                            
-                            <div class="text-center">
-                                <div class="bg-yellow-100 text-yellow-800 rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-3">
-                                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
-                                    </svg>
-                                </div>
-                                <h4 class="font-medium text-gray-800">Caution Zones</h4>
-                                <p class="text-sm text-gray-600 mt-2">Mixed signals, T2108 20-80 range, low volume on moves</p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Data Source & Updates -->
-                    <div class="mt-6 pt-6 border-t border-gray-200">
-                        <div class="flex flex-col md:flex-row md:items-center md:justify-between">
-                            <div>
-                                <h4 class="font-medium text-gray-800">Data Source</h4>
-                                <p class="text-sm text-gray-600 mt-1">Market breadth data sourced from Worden TC2000 universe, updated daily after market close.</p>
-                            </div>
-                            <div class="mt-4 md:mt-0">
-                                <div class="flex items-center space-x-2">
-                                    <div class="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
-                                    <span class="text-sm text-gray-600">Live data connection</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script>
         let marketData = [];
         let selectedIndicators = new Set(['Number of stocks up 4% plus today', 'Number of stocks down 4% plus today', 'T2108']);
         let autoRefreshEnabled = false;
@@ -1255,6 +552,50 @@
             updateSentiment(latest);
         }
 
+        // Update selected indicators based on chart view
+        function updateSelectedIndicatorsForView(view) {
+            // Clear current selection
+            selectedIndicators.clear();
+            
+            // Add indicators based on the selected view
+            switch (view) {
+                case 'overview':
+                    selectedIndicators.add('Number of stocks up 4% plus today');
+                    selectedIndicators.add('Number of stocks down 4% plus today');
+                    selectedIndicators.add('T2108');
+                    break;
+                case 'breadth':
+                    selectedIndicators.add('Number of stocks up 4% plus today');
+                    selectedIndicators.add('Number of stocks down 4% plus today');
+                    selectedIndicators.add('Number of stocks up 25% plus in a quarter');
+                    selectedIndicators.add('Number of stocks down 25% + in a quarter');
+                    break;
+                case 'ratios':
+                    selectedIndicators.add('5 day ratio');
+                    selectedIndicators.add('10 day  ratio ');
+                    selectedIndicators.add('T2108');
+                    break;
+                case 'momentum':
+                    selectedIndicators.add('Number of stocks up 25% + in a month');
+                    selectedIndicators.add('Number of stocks down 25% + in a month');
+                    selectedIndicators.add('Number of stocks up 50% + in a month');
+                    selectedIndicators.add('Number of stocks down 50% + in a month');
+                    break;
+                case 'analysis':
+                    // For analysis view, keep current selection or use default
+                    selectedIndicators.add('Number of stocks up 4% plus today');
+                    selectedIndicators.add('Number of stocks down 4% plus today');
+                    break;
+                default:
+                    selectedIndicators.add('Number of stocks up 4% plus today');
+                    selectedIndicators.add('Number of stocks down 4% plus today');
+                    selectedIndicators.add('T2108');
+            }
+            
+            // Update checkbox states
+            createIndicatorCheckboxes();
+        }
+
         // Update market sentiment
         function updateSentiment(latest) {
             const sentimentText = document.getElementById('sentiment-text');
@@ -1365,9 +706,11 @@
             
             // Add series items with color swatches
             tooltip.dataPoints.forEach((dataPoint, index) => {
-                const config = indicatorConfig[Object.keys(indicatorConfig).find(key => 
-                    indicatorConfig[key].name === dataPoint.dataset.label
-                )];
+                const datasetIndex = dataPoint.datasetIndex;
+                const dataset = chart.data.datasets[datasetIndex];
+                const config = Object.values(indicatorConfig).find(config => 
+                    config.name === dataset.label
+                );
                 
                 if (config) {
                     const seriesItem = document.createElement('div');
@@ -1378,20 +721,21 @@
                             <div class="series-swatch" style="background-color: ${config.color}"></div>
                             <span class="series-name">${config.name}</span>
                         </div>
-                        <span class="series-value">${formatTooltipValue(dataPoint.parsed.y, dataPoint.dataset.label)}</span>
+                        <span class="series-value">${formatTooltipValue(dataPoint.parsed.y, config.name)}</span>
                     `;
                     
                     seriesEl.appendChild(seriesItem);
                 }
             });
             
-            // Add market summary
+            // Add market summary - get values from the actual data point
+            let summaryHtml = '<div style="font-weight: 600; margin-bottom: 4px;">📊 Market Summary</div>';
+            
+            // Try to find common indicators in the data point
             const upStocks = dataPoint['Number of stocks up 4% plus today'];
             const downStocks = dataPoint['Number of stocks down 4% plus today'];
             const ratio5day = dataPoint['5 day ratio'];
             const t2108 = dataPoint['T2108'];
-            
-            let summaryHtml = '<div style="font-weight: 600; margin-bottom: 4px;">📊 Market Summary</div>';
             
             if (upStocks !== undefined && downStocks !== undefined) {
                 const netBreadth = upStocks - downStocks;
@@ -2116,9 +1460,6 @@
                 };
             });
 
-            // Get chart configuration based on selected view
-            const chartConfig = getChartConfigForView(currentChartView, filteredData, containerWidth);
-            
             // Destroy existing chart
             if (chartInstance) {
                 chartInstance.destroy();
@@ -2128,10 +1469,13 @@
                 ? `${filteredData[0].Date} to ${filteredData[filteredData.length - 1].Date}`
                 : "All Historical Data";
 
-            // Create new chart with responsive options
+            // Create new chart with responsive options using the datasets from selected indicators
             chartInstance = new Chart(ctx, {
-                type: chartConfig.type,
-                data: chartConfig.data,
+                type: 'line', // Use line chart for custom indicator selection
+                data: {
+                    labels: labels,
+                    datasets: datasets
+                },
                 options: getResponsiveChartOptions(timeRange, rangeText, containerWidth)
             });
             
@@ -2165,7 +1509,12 @@
         }
 
         // Event listeners
-        document.getElementById('chart-view').addEventListener('change', drawChart);
+        document.getElementById('chart-view').addEventListener('change', function() {
+            const view = this.value;
+            // Update selected indicators based on view
+            updateSelectedIndicatorsForView(view);
+            drawChart();
+        });
         document.getElementById('time-range').addEventListener('change', drawChart);
         document.getElementById('refresh-data').addEventListener('click', () => loadMarketData(true));
         document.getElementById('auto-refresh-toggle').addEventListener('click', toggleAutoRefresh);
@@ -2190,6 +1539,3 @@
         window.addEventListener('orientationchange', () => {
             setTimeout(handleResize, 100); // Small delay to account for orientation change
         });
-    </script>
-</body>
-</html>
