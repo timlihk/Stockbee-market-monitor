@@ -999,10 +999,15 @@
                         enabled: false, // Disable default tooltip
                         external: function(context) {
                             // Enhanced custom tooltip with animations and interactivity
+                            console.log('Tooltip external function called');
                             const tooltipEl = document.getElementById('custom-tooltip');
                             const chart = context.chart;
                             const tooltip = context.tooltip;
                             const activeElements = chart.getActiveElements();
+                            
+                            console.log('Tooltip opacity:', tooltip.opacity);
+                            console.log('Active elements:', activeElements);
+                            console.log('Chart filteredData:', chart.filteredData);
                             
                             // Hide tooltip and reset interactions when no data
                             if (tooltip.opacity === 0) {
@@ -1033,8 +1038,11 @@
                             updateSeriesEmphasis(chart, activeElements);
                             
                             // Get data point
+                            console.log('Tooltip dataPoints:', tooltip.dataPoints);
                             const dataIndex = tooltip.dataPoints[0].dataIndex;
+                            console.log('Data index:', dataIndex);
                             const dataPoint = chart.filteredData[dataIndex];
+                            console.log('Data point:', dataPoint);
                             
                             if (dataPoint) {
                                 // Update tooltip content
