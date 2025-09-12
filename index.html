@@ -1063,7 +1063,7 @@
                 console.error('Error loading market data:', error);
                 document.getElementById('loading-spinner').style.display = 'none';
                 updateDataStatus('error', 'Load failed');
-                alert('Error loading market data. Please check your connection.');
+                alert('Error loading market data. Please check your connection and Google Sheets permissions.');
             }
         }
 
@@ -1184,19 +1184,6 @@
             
             if (!latest || !latest.Date) {
                 return;
-            }
-            
-                upStocks: latest['Number of stocks up 4% plus today'],
-                downStocks: latest['Number of stocks down 4% plus today'],
-                ratio5day: latest['5 day ratio'],
-                t2108: latest['T2108'],
-                sp500: latest['S&P']
-            });
-            
-            // EMERGENCY DEBUG: Check if we're getting the expected values
-            const expectedUpStocks = 503;
-            const actualUpStocks = latest['Number of stocks up 4% plus today'];
-            if (actualUpStocks !== expectedUpStocks) {
             }
             const container = document.getElementById('current-readings');
             
