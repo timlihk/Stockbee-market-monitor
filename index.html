@@ -128,8 +128,10 @@
                         </div>
                     </div>
                     
-                    <div class="chart-container bg-white rounded-lg border">
-                        <canvas id="stockChart" style="width:100%;height:500px;"></canvas>
+                    <div class="chart-container bg-white rounded-lg border p-4">
+                        <div class="w-full h-64 sm:h-72 md:h-80 lg:h-96 xl:h-[500px] relative">
+                            <canvas id="stockChart" class="w-full h-full"></canvas>
+                        </div>
                     </div>
                 </div>
                 
@@ -617,12 +619,173 @@
             sentimentDesc.textContent = description;
         }
 
-        // Chart rendering with Chart.js
+        // Chart rendering with Chart.js - Fully responsive
         let chartInstance = null;
+        let resizeTimeout = null;
+        
+        function getResponsiveChartOptions(timeRange, rangeText, containerWidth) {
+            // Determine legend position based on container width
+            const legendPosition = containerWidth < 640 ? 'bottom' : 'top';
+            const legendAlign = containerWidth < 640 ? 'center' : 'start';
+            
+            // Adjust font sizes based on screen size
+            const titleFontSize = containerWidth < 640 ? 12 : 14;
+            const legendFontSize = containerWidth < 640 ? 10 : 12;
+            const axisFontSize = containerWidth < 640 ? 9 : 11;
+            
+            return {
+                responsive: true,
+                maintainAspectRatio: false,
+                devicePixelRatio: window.devicePixelRatio || 1,
+                interaction: { 
+                    mode: "index", 
+                    intersect: false,
+                    axis: 'x'
+                },
+                animation: {
+                    duration: containerWidth < 640 ? 200 : 300 // Faster animations on mobile
+                },
+                plugins: {
+                    legend: { 
+                        display: true,
+                        position: legendPosition,
+                        align: legendAlign,
+                        labels: {
+                            font: { size: legendFontSize },
+                            usePointStyle: true,
+                            boxWidth: containerWidth < 640 ? 8 : 12,
+                            padding: containerWidth < 640 ? 10 : 15
+                        }
+                    },
+                    title: { 
+                        display: true, 
+                        text: `📅 ${rangeText}`,
+                        font: { 
+                            size: titleFontSize,
+                            weight: 'bold'
+                        },
+                        padding: containerWidth < 640 ? 10 : 15
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0,0,0,0.9)',
+                        titleColor: 'white',
+                        bodyColor: 'white',
+                        borderColor: 'rgba(255,255,255,0.3)',
+                        borderWidth: 1,
+                        cornerRadius: 8,
+                        displayColors: true,
+                        usePointStyle: true,
+                        callbacks: {
+                            title: function(context) {
+                                return `📅 ${context[0].label}`;
+                            },
+                            afterBody: function(context) {
+                                // Add market summary to tooltip
+                                const dataIndex = context[0].dataIndex;
+                                const dataPoint = filteredData.slice().reverse()[dataIndex];
+                                
+                                if (dataPoint) {
+                                    const upStocks = dataPoint['Number of stocks up 4% plus today'];
+                                    const downStocks = dataPoint['Number of stocks down 4% plus today'];
+                                    const ratio5day = dataPoint['5 day ratio'];
+                                    const t2108 = dataPoint['T2108'];
+                                    
+                                    let summary = [];
+                                    if (upStocks !== undefined && downStocks !== undefined) {
+                                        const netBreadth = upStocks - downStocks;
+                                        summary.push(`Net Breadth: ${netBreadth > 0 ? '+' : ''}${netBreadth.toLocaleString()}`);
+                                    }
+                                    if (ratio5day) summary.push(`5D Ratio: ${ratio5day.toFixed(2)}`);
+                                    if (t2108) summary.push(`T2108: ${t2108.toFixed(1)}%`);
+                                    
+                                    return summary.length > 0 ? ['', '📊 Market Summary:', ...summary] : [];
+                                }
+                                return [];
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        display: true,
+                        grid: {
+                            display: containerWidth >= 640, // Hide grid on mobile for cleaner look
+                            color: 'rgba(0,0,0,0.1)'
+                        },
+                        ticks: {
+                            font: { size: axisFontSize },
+                            maxTicksLimit: containerWidth < 640 ? 4 : containerWidth < 1024 ? 6 : 8,
+                            callback: function(value, index, values) {
+                                // Format dates based on screen size
+                                const date = new Date(this.getLabelForValue(value));
+                                if (containerWidth < 640) {
+                                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                                }
+                                return this.getLabelForValue(value);
+                            }
+                        }
+                    },
+                    y: { 
+                        type: "linear", 
+                        position: "left",
+                        display: true,
+                        grid: {
+                            color: 'rgba(0,0,0,0.1)'
+                        },
+                        ticks: {
+                            font: { size: axisFontSize },
+                            callback: function(value) {
+                                // Format large numbers
+                                if (value >= 1000) {
+                                    return (value / 1000).toFixed(1) + 'K';
+                                }
+                                return value.toLocaleString();
+                            }
+                        }
+                    },
+                    y1: { 
+                        type: "linear", 
+                        position: "right",
+                        display: containerWidth >= 768, // Hide right axis on small screens
+                        grid: { 
+                            drawOnChartArea: false,
+                            color: 'rgba(0,0,0,0.1)'
+                        },
+                        ticks: {
+                            font: { size: axisFontSize },
+                            callback: function(value) {
+                                return value.toFixed(1);
+                            }
+                        }
+                    }
+                },
+                elements: {
+                    point: {
+                        radius: containerWidth < 640 ? 2 : 3,
+                        hoverRadius: containerWidth < 640 ? 4 : 6,
+                        hitRadius: containerWidth < 640 ? 6 : 8
+                    },
+                    line: {
+                        borderWidth: containerWidth < 640 ? 1.5 : 2,
+                        tension: 0.3
+                    }
+                }
+            };
+        }
+        
         function drawChart() {
             if (marketData.length === 0) return;
 
-            const ctx = document.getElementById('stockChart').getContext('2d');
+            const canvas = document.getElementById('stockChart');
+            const ctx = canvas.getContext('2d');
+            const container = canvas.parentElement;
+            const containerWidth = container.clientWidth;
+            const containerHeight = container.clientHeight;
+            
+            // Set canvas size to match container
+            canvas.style.width = '100%';
+            canvas.style.height = '100%';
+            
             const timeRange = parseInt(document.getElementById('time-range').value);
 
             let filteredData = marketData;
@@ -637,7 +800,13 @@
             if (filteredData.length === 0) return;
 
             const orderedData = filteredData.slice().reverse();
-            const labels = orderedData.map(d => d.Date);
+            const labels = orderedData.map(d => {
+                // Format labels based on container width
+                if (containerWidth < 640) {
+                    return new Date(d.Date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                }
+                return d.Date;
+            });
 
             const activeIndicators = Array.from(selectedIndicators).filter(key =>
                 orderedData.some(d => d[key] !== undefined && d[key] !== null)
@@ -650,14 +819,19 @@
                     label: config.name,
                     data: orderedData.map(d => d[key] !== undefined && d[key] !== null ? d[key] : null),
                     borderColor: config.color,
-                    backgroundColor: config.color,
+                    backgroundColor: config.color + '20', // Add transparency for mobile
                     borderDash: config.dashArray ? config.dashArray.split(',').map(Number) : undefined,
-                    yAxisID: config.yAxis === 'left' ? 'y' : 'y1',
+                    yAxisID: containerWidth >= 768 && config.yAxis === 'right' ? 'y1' : 'y', // Use single axis on mobile
                     tension: 0.3,
-                    spanGaps: true
+                    spanGaps: true,
+                    fill: false,
+                    pointBackgroundColor: config.color,
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: containerWidth < 640 ? 1 : 2
                 };
             });
 
+            // Destroy existing chart
             if (chartInstance) {
                 chartInstance.destroy();
             }
@@ -666,23 +840,26 @@
                 ? `${orderedData[0].Date} to ${orderedData[orderedData.length - 1].Date}`
                 : "All Historical Data";
 
+            // Create new chart with responsive options
             chartInstance = new Chart(ctx, {
                 type: "line",
                 data: { labels, datasets },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: { mode: "index", intersect: false },
-                    plugins: {
-                        legend: { display: true },
-                        title: { display: true, text: `📅 ${rangeText}` }
-                    },
-                    scales: {
-                        y: { type: "linear", position: "left" },
-                        y1: { type: "linear", position: "right", grid: { drawOnChartArea: false } }
-                    }
-                }
+                options: getResponsiveChartOptions(timeRange, rangeText, containerWidth)
             });
+        }
+        
+        // Optimized resize handler
+        function handleResize() {
+            if (resizeTimeout) {
+                clearTimeout(resizeTimeout);
+            }
+            
+            resizeTimeout = setTimeout(() => {
+                if (chartInstance) {
+                    // Force redraw with new responsive settings
+                    drawChart();
+                }
+            }, 250); // Debounce resize events
         }
 
         // Event listeners
@@ -702,7 +879,13 @@
             }, 300000); // 5 minutes
         });
         
-        window.addEventListener('resize', drawChart);
+        // Responsive resize handling
+        window.addEventListener('resize', handleResize);
+        
+        // Handle orientation change on mobile devices
+        window.addEventListener('orientationchange', () => {
+            setTimeout(handleResize, 100); // Small delay to account for orientation change
+        });
     </script>
 </body>
 </html>
