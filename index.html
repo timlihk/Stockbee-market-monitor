@@ -389,16 +389,6 @@
                         </div>
                         
                         <div class="flex flex-wrap gap-4 mt-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Chart View</label>
-                                <select id="chart-view" class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                    <option value="overview">Market Overview</option>
-                                    <option value="breadth">Daily Breadth</option>
-                                    <option value="ratios">Ratios & T2108</option>
-                                    <option value="momentum">Monthly Momentum</option>
-                                    <option value="analysis">Market Analysis</option>
-                                </select>
-                            </div>
                             
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Time Range</label>
@@ -1291,7 +1281,6 @@
         let chartInstance = null;
         let resizeTimeout = null;
         let isDarkTheme = false;
-        let currentChartView = 'overview';
         
         // Theme management
         function toggleTheme() {
@@ -1807,203 +1796,6 @@
             };
         }
         
-        // Get chart configuration based on current view
-        function getChartConfigForView(view, filteredData, containerWidth) {
-            const orderedData = filteredData.slice(); // Keep newest-first order
-            const labels = orderedData.map(d => {
-                if (containerWidth < 640) {
-                    return new Date(d.Date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                }
-                return d.Date;
-            });
-
-            switch (view) {
-                case 'overview':
-                    return {
-                        type: 'line',
-                        data: {
-                            labels,
-                            datasets: [
-                                {
-                                    label: 'Stocks Up 4%+',
-                                    data: orderedData.map(d => d['Number of stocks up 4% plus today']),
-                                    borderColor: '#10b981',
-                                    backgroundColor: '#10b98120',
-                                    borderWidth: 3,
-                                    fill: false,
-                                    yAxisID: 'y'
-                                },
-                                {
-                                    label: 'Stocks Down 4%+',
-                                    data: orderedData.map(d => d['Number of stocks down 4% plus today']),
-                                    borderColor: '#f43f5e',
-                                    backgroundColor: '#f43f5e20',
-                                    borderWidth: 3,
-                                    fill: false,
-                                    yAxisID: 'y'
-                                },
-                                {
-                                    label: 'T2108 (%)',
-                                    data: orderedData.map(d => d['T2108']),
-                                    borderColor: '#ea580c',
-                                    backgroundColor: '#ea580c20',
-                                    borderWidth: 2,
-                                    borderDash: [8, 4],
-                                    fill: false,
-                                    yAxisID: 'y1'
-                                }
-                            ]
-                        }
-                    };
-
-                case 'breadth':
-                    return {
-                        type: 'line',
-                        data: {
-                            labels,
-                            datasets: [
-                                {
-                                    label: 'Stocks Up 4%+ Daily',
-                                    data: orderedData.map(d => d['Number of stocks up 4% plus today']),
-                                    borderColor: '#10b981',
-                                    backgroundColor: '#10b98120',
-                                    borderWidth: 3,
-                                    fill: false
-                                },
-                                {
-                                    label: 'Stocks Down 4%+ Daily',
-                                    data: orderedData.map(d => d['Number of stocks down 4% plus today']),
-                                    borderColor: '#f43f5e',
-                                    backgroundColor: '#f43f5e20',
-                                    borderWidth: 3,
-                                    fill: false
-                                },
-                                {
-                                    label: 'Stocks Up 25%+ Quarter',
-                                    data: orderedData.map(d => d['Number of stocks up 25% plus in a quarter']),
-                                    borderColor: '#34d399',
-                                    backgroundColor: '#34d39920',
-                                    borderWidth: 2,
-                                    fill: false
-                                },
-                                {
-                                    label: 'Stocks Down 25%+ Quarter',
-                                    data: orderedData.map(d => d['Number of stocks down 25% + in a quarter']),
-                                    borderColor: '#fb7185',
-                                    backgroundColor: '#fb718520',
-                                    borderWidth: 2,
-                                    fill: false
-                                }
-                            ]
-                        }
-                    };
-
-                case 'ratios':
-                    return {
-                        type: 'bar',
-                        data: {
-                            labels,
-                            datasets: [
-                                {
-                                    label: '5-Day Ratio',
-                                    data: orderedData.map(d => d['5 day ratio']),
-                                    backgroundColor: '#8b5cf6',
-                                    borderColor: '#7c3aed',
-                                    borderWidth: 1,
-                                    yAxisID: 'y',
-                                    type: 'bar'
-                                },
-                                {
-                                    label: '10-Day Ratio',
-                                    data: orderedData.map(d => d['10 day  ratio ']),
-                                    backgroundColor: '#06b6d4',
-                                    borderColor: '#0891b2',
-                                    borderWidth: 1,
-                                    yAxisID: 'y',
-                                    type: 'bar'
-                                },
-                                {
-                                    label: 'T2108 (%)',
-                                    data: orderedData.map(d => d['T2108']),
-                                    borderColor: '#ea580c',
-                                    backgroundColor: '#ea580c00',
-                                    borderWidth: 4,
-                                    fill: false,
-                                    yAxisID: 'y1',
-                                    type: 'line'
-                                }
-                            ]
-                        }
-                    };
-
-                case 'momentum':
-                    return {
-                        type: 'line',
-                        data: {
-                            labels,
-                            datasets: [
-                                {
-                                    label: 'Stocks Up 50%+ Month',
-                                    data: orderedData.map(d => d['Number of stocks up 50% + in a month']),
-                                    borderColor: '#10b981',
-                                    backgroundColor: '#10b981',
-                                    borderWidth: 0,
-                                    fill: 'origin'
-                                },
-                                {
-                                    label: 'Stocks Up 25%+ Month',
-                                    data: orderedData.map(d => d['Number of stocks up 25% + in a month']),
-                                    borderColor: '#34d399',
-                                    backgroundColor: '#34d399',
-                                    borderWidth: 0,
-                                    fill: 'origin'
-                                },
-                                {
-                                    label: 'Stocks Down 25%+ Month',
-                                    data: orderedData.map(d => d['Number of stocks down 25% + in a month']),
-                                    borderColor: '#f87171',
-                                    backgroundColor: '#f87171',
-                                    borderWidth: 0,
-                                    fill: 'origin'
-                                },
-                                {
-                                    label: 'Stocks Down 50%+ Month',
-                                    data: orderedData.map(d => d['Number of stocks down 50% + in a month']),
-                                    borderColor: '#ef4444',
-                                    backgroundColor: '#ef4444',
-                                    borderWidth: 0,
-                                    fill: 'origin'
-                                }
-                            ]
-                        }
-                    };
-
-                case 'analysis':
-                    return {
-                        type: 'scatter',
-                        data: {
-                            labels,
-                            datasets: [
-                                {
-                                    label: 'Breadth Scatter',
-                                    data: orderedData.map(d => ({
-                                        x: d['Number of stocks up 4% plus today'] || 0,
-                                        y: d['Number of stocks down 4% plus today'] || 0
-                                    })),
-                                    backgroundColor: '#8b5cf6',
-                                    borderColor: '#7c3aed',
-                                    borderWidth: 2,
-                                    pointRadius: 6,
-                                    pointHoverRadius: 8
-                                }
-                            ]
-                        }
-                    };
-
-                default:
-                    return getChartConfigForView('overview', filteredData, containerWidth);
-            }
-        }
 
         function drawChart() {
             if (marketData.length === 0) return;
@@ -2019,7 +1811,6 @@
             canvas.style.height = '100%';
             
             const timeRange = parseInt(document.getElementById('time-range').value);
-            currentChartView = document.getElementById('chart-view').value;
 
             let filteredData = marketData;
             if (timeRange > 0) {
@@ -2103,9 +1894,6 @@
                 };
             });
 
-            // Get chart configuration based on selected view
-            const chartConfig = getChartConfigForView(currentChartView, filteredData, containerWidth);
-            
             // Destroy existing chart
             if (chartInstance) {
                 chartInstance.destroy();
@@ -2115,10 +1903,13 @@
                 ? `${filteredData[0].Date} to ${filteredData[filteredData.length - 1].Date}`
                 : "All Historical Data";
 
-            // Create new chart with responsive options
+            // Create new chart with responsive options using the selected indicators
             chartInstance = new Chart(ctx, {
-                type: chartConfig.type,
-                data: chartConfig.data,
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: datasets
+                },
                 options: getResponsiveChartOptions(timeRange, rangeText, containerWidth)
             });
             
@@ -2152,7 +1943,6 @@
         }
 
         // Event listeners
-        document.getElementById('chart-view').addEventListener('change', drawChart);
         document.getElementById('time-range').addEventListener('change', drawChart);
         document.getElementById('refresh-data').addEventListener('click', () => loadMarketData(true));
         document.getElementById('auto-refresh-toggle').addEventListener('click', toggleAutoRefresh);
