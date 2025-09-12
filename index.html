@@ -940,6 +940,7 @@
             }
             if (filteredData.length === 0) return;
 
+            // Reverse to chronological order (oldest to newest) so latest date appears on the right
             const orderedData = filteredData.slice().reverse();
             const labels = orderedData.map(d => {
                 // Format labels based on container width
