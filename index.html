@@ -161,10 +161,13 @@
                             <label class="text-sm text-gray-600">
                                 Time Range:
                                 <select id="time-range" class="ml-2 px-3 py-1 border border-gray-300 rounded">
-                                    <option value="30">Last 30 days</option>
-                                    <option value="60" selected>Last 60 days</option>
+                                    <option value="7">Last 7 days</option>
+                                    <option value="14">Last 2 weeks</option>
+                                    <option value="30" selected>Last 30 days</option>
+                                    <option value="60">Last 60 days</option>
                                     <option value="90">Last 90 days</option>
                                     <option value="180">Last 6 months</option>
+                                    <option value="365">Last year</option>
                                     <option value="0">All data</option>
                                 </select>
                             </label>
@@ -682,10 +685,25 @@
             
             svg.innerHTML = '';
             
-            // Filter data by time range
+            // Filter data by time range using actual dates
             let filteredData = marketData;
             if (timeRange > 0) {
-                filteredData = marketData.slice(0, timeRange);
+                const today = new Date();
+                const cutoffDate = new Date();
+                cutoffDate.setDate(today.getDate() - timeRange);
+                
+                filteredData = marketData.filter(d => {
+                    if (!d.Date) return false;
+                    const recordDate = new Date(d.Date);
+                    return recordDate >= cutoffDate;
+                });
+                
+                console.log(`Time range: ${timeRange} days`);
+                console.log(`Cutoff date: ${cutoffDate.toLocaleDateString()}`);
+                console.log(`Filtered data: ${filteredData.length} records`);
+                if (filteredData.length > 0) {
+                    console.log(`Date range: ${filteredData[filteredData.length - 1].Date} to ${filteredData[0].Date}`);
+                }
             }
             
             if (filteredData.length === 0) return;
@@ -976,11 +994,29 @@
                 chartGroup.appendChild(hoverRect);
             });
             
-            // Add legend
+            // Add legend and time range indicator
             const legend = createSVGElement('g', { transform: 'translate(20, 20)' });
+            
+            // Time range indicator
+            const timeRangeText = createSVGElement('text', {
+                x: '0', y: '-5',
+                class: 'axis-text', fill: '#6b7280',
+                'font-size': '11', 'font-weight': 'bold'
+            });
+            if (timeRange > 0) {
+                const dateRangeText = filteredData.length > 0 ? 
+                    `${filteredData[filteredData.length - 1].Date} to ${filteredData[0].Date}` : 
+                    `Last ${timeRange} days`;
+                timeRangeText.textContent = `📅 ${dateRangeText}`;
+            } else {
+                timeRangeText.textContent = '📅 All Historical Data';
+            }
+            legend.appendChild(timeRangeText);
+            
+            // Indicator legend
             activeIndicators.forEach((key, i) => {
                 const config = indicatorConfig[key];
-                const legendY = i * 18;
+                const legendY = (i + 1) * 18; // +1 to account for time range text
                 
                 const line = createSVGElement('line', {
                     x1: '0', y1: legendY.toString(), x2: '20', y2: legendY.toString(),
