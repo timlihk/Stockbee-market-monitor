@@ -12,10 +12,18 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
                 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
                 sans-serif;
-            background-color: #f9fafb;
+            background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+            min-height: 100vh;
         }
         .chart-container {
             position: relative;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #e2e8f0 100%);
+            border: 1px solid rgba(226, 232, 240, 0.5);
+            box-shadow: 
+                0 10px 25px -3px rgba(0, 0, 0, 0.1),
+                0 4px 6px -2px rgba(0, 0, 0, 0.05),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(8px);
         }
         .indicator-checkbox {
             appearance: none;
@@ -216,28 +224,120 @@
         let lastDataHash = null;
         let lastCheckTime = null;
         
-        // Define indicator configurations
+        // Define indicator configurations with modern Tailwind color palette
         const indicatorConfig = {
-            // Primary Breadth Indicators
-            'Number of stocks up 4% plus today': { color: '#00C851', category: 'primary', yAxis: 'left', name: 'Stocks Up 4%+' },
-            'Number of stocks down 4% plus today': { color: '#ff4444', category: 'primary', yAxis: 'left', name: 'Stocks Down 4%+' },
-            '5 day ratio': { color: '#8b5cf6', category: 'primary', yAxis: 'right', name: '5-Day Ratio' },
-            '10 day  ratio ': { color: '#f59e0b', category: 'primary', yAxis: 'right', name: '10-Day Ratio' },
-            'Number of stocks up 25% plus in a quarter': { color: '#10b981', category: 'primary', yAxis: 'left', name: 'Stocks Up 25%+ Quarter' },
-            'Number of stocks down 25% + in a quarter': { color: '#ef4444', category: 'primary', yAxis: 'left', name: 'Stocks Down 25%+ Quarter' },
+            // Primary Breadth Indicators - Emerald/Rose theme
+            'Number of stocks up 4% plus today': { 
+                color: '#10b981', // emerald-500
+                gradientColors: ['#6ee7b7', '#10b981'], // emerald-300 to emerald-500
+                category: 'primary', 
+                yAxis: 'left', 
+                name: 'Stocks Up 4%+' 
+            },
+            'Number of stocks down 4% plus today': { 
+                color: '#f43f5e', // rose-500
+                gradientColors: ['#fda4af', '#f43f5e'], // rose-300 to rose-500
+                category: 'primary', 
+                yAxis: 'left', 
+                name: 'Stocks Down 4%+' 
+            },
+            '5 day ratio': { 
+                color: '#8b5cf6', // violet-500
+                gradientColors: ['#c4b5fd', '#8b5cf6'], // violet-300 to violet-500
+                category: 'primary', 
+                yAxis: 'right', 
+                name: '5-Day Ratio' 
+            },
+            '10 day  ratio ': { 
+                color: '#f59e0b', // amber-500
+                gradientColors: ['#fcd34d', '#f59e0b'], // amber-300 to amber-500
+                category: 'primary', 
+                yAxis: 'right', 
+                name: '10-Day Ratio' 
+            },
+            'Number of stocks up 25% plus in a quarter': { 
+                color: '#059669', // emerald-600
+                gradientColors: ['#34d399', '#059669'], // emerald-400 to emerald-600
+                category: 'primary', 
+                yAxis: 'left', 
+                name: 'Stocks Up 25%+ Quarter' 
+            },
+            'Number of stocks down 25% + in a quarter': { 
+                color: '#e11d48', // rose-600
+                gradientColors: ['#fb7185', '#e11d48'], // rose-400 to rose-600
+                category: 'primary', 
+                yAxis: 'left', 
+                name: 'Stocks Down 25%+ Quarter' 
+            },
             
-            // Secondary Breadth Indicators
-            'Number of stocks up 25% + in a month': { color: '#06b6d4', category: 'secondary', yAxis: 'left', name: 'Stocks Up 25%+ Month' },
-            'Number of stocks down 25% + in a month': { color: '#dc2626', category: 'secondary', yAxis: 'left', name: 'Stocks Down 25%+ Month' },
-            'Number of stocks up 50% + in a month': { color: '#16a34a', category: 'secondary', yAxis: 'left', name: 'Stocks Up 50%+ Month' },
-            'Number of stocks down 50% + in a month': { color: '#b91c1c', category: 'secondary', yAxis: 'left', name: 'Stocks Down 50%+ Month' },
-            'Number of stocks up 13% + in 34 days': { color: '#0ea5e9', category: 'secondary', yAxis: 'left', name: 'Stocks Up 13%+ (34d)' },
-            'Number of stocks down 13% + in 34 days': { color: '#e11d48', category: 'secondary', yAxis: 'left', name: 'Stocks Down 13%+ (34d)' },
+            // Secondary Breadth Indicators - Sky/Orange theme
+            'Number of stocks up 25% + in a month': { 
+                color: '#0ea5e9', // sky-500
+                gradientColors: ['#7dd3fc', '#0ea5e9'], // sky-300 to sky-500
+                category: 'secondary', 
+                yAxis: 'left', 
+                name: 'Stocks Up 25%+ Month' 
+            },
+            'Number of stocks down 25% + in a month': { 
+                color: '#dc2626', // red-600
+                gradientColors: ['#f87171', '#dc2626'], // red-400 to red-600
+                category: 'secondary', 
+                yAxis: 'left', 
+                name: 'Stocks Down 25%+ Month' 
+            },
+            'Number of stocks up 50% + in a month': { 
+                color: '#0284c7', // sky-600
+                gradientColors: ['#38bdf8', '#0284c7'], // sky-400 to sky-600
+                category: 'secondary', 
+                yAxis: 'left', 
+                name: 'Stocks Up 50%+ Month' 
+            },
+            'Number of stocks down 50% + in a month': { 
+                color: '#b91c1c', // red-700
+                gradientColors: ['#ef4444', '#b91c1c'], // red-500 to red-700
+                category: 'secondary', 
+                yAxis: 'left', 
+                name: 'Stocks Down 50%+ Month' 
+            },
+            'Number of stocks up 13% + in 34 days': { 
+                color: '#0369a1', // sky-700
+                gradientColors: ['#0ea5e9', '#0369a1'], // sky-500 to sky-700
+                category: 'secondary', 
+                yAxis: 'left', 
+                name: 'Stocks Up 13%+ (34d)' 
+            },
+            'Number of stocks down 13% + in 34 days': { 
+                color: '#991b1b', // red-800
+                gradientColors: ['#dc2626', '#991b1b'], // red-600 to red-800
+                category: 'secondary', 
+                yAxis: 'left', 
+                name: 'Stocks Down 13%+ (34d)' 
+            },
             
-            // Market Indicators
-            'T2108': { color: '#ff6600', category: 'market', yAxis: 'right', name: 'T2108 (%)', dashArray: '5,5' },
-            'S&P': { color: '#6366f1', category: 'market', yAxis: 'right', name: 'S&P 500', dashArray: '10,5' },
-            ' Worden Common stock universe': { color: '#84cc16', category: 'market', yAxis: 'left', name: 'Total Universe' }
+            // Market Indicators - Special styling
+            'T2108': { 
+                color: '#ea580c', // orange-600
+                gradientColors: ['#fb923c', '#ea580c'], // orange-400 to orange-600
+                category: 'market', 
+                yAxis: 'right', 
+                name: 'T2108 (%)', 
+                dashArray: [8, 4] // Modern dash pattern
+            },
+            'S&P': { 
+                color: '#6366f1', // indigo-500
+                gradientColors: ['#a5b4fc', '#6366f1'], // indigo-300 to indigo-500
+                category: 'market', 
+                yAxis: 'right', 
+                name: 'S&P 500', 
+                dashArray: [12, 6] // Modern dash pattern
+            },
+            ' Worden Common stock universe': { 
+                color: '#65a30d', // lime-600
+                gradientColors: ['#a3e635', '#65a30d'], // lime-400 to lime-600
+                category: 'market', 
+                yAxis: 'left', 
+                name: 'Total Universe' 
+            }
         };
 
         // Generate hash for data comparison
@@ -902,13 +1002,26 @@
                 },
                 elements: {
                     point: {
-                        radius: containerWidth < 640 ? 2 : 3,
-                        hoverRadius: containerWidth < 640 ? 4 : 6,
-                        hitRadius: containerWidth < 640 ? 6 : 8
+                        radius: containerWidth < 640 ? 3 : 4,
+                        hoverRadius: containerWidth < 640 ? 6 : 8,
+                        hitRadius: containerWidth < 640 ? 8 : 12,
+                        borderWidth: 2,
+                        hoverBorderWidth: 3
                     },
                     line: {
-                        borderWidth: containerWidth < 640 ? 1.5 : 2,
-                        tension: 0.3
+                        borderWidth: containerWidth < 640 ? 2 : 3,
+                        tension: 0.4, // Smooth curves
+                        borderJoinStyle: 'round',
+                        borderCapStyle: 'round'
+                    }
+                },
+                // Enhanced chart area styling
+                layout: {
+                    padding: {
+                        left: containerWidth < 640 ? 10 : 20,
+                        right: containerWidth < 640 ? 10 : 20,
+                        top: containerWidth < 640 ? 10 : 20,
+                        bottom: containerWidth < 640 ? 10 : 20
                     }
                 }
             };
@@ -964,21 +1077,59 @@
             );
             if (activeIndicators.length === 0) return;
 
-            const datasets = activeIndicators.map(key => {
+            // Create gradient backgrounds for each line
+            const datasets = activeIndicators.map((key, index) => {
                 const config = indicatorConfig[key];
+                
+                // Create gradient if colors are defined
+                let backgroundGradient = null;
+                let borderGradient = null;
+                
+                if (config.gradientColors) {
+                    // Create linear gradient for background (subtle fill)
+                    backgroundGradient = ctx.createLinearGradient(0, 0, 0, containerHeight);
+                    backgroundGradient.addColorStop(0, config.gradientColors[0] + '40'); // 25% opacity at top
+                    backgroundGradient.addColorStop(1, config.gradientColors[1] + '10'); // 6% opacity at bottom
+                    
+                    // Create linear gradient for border (vibrant line)
+                    borderGradient = ctx.createLinearGradient(0, 0, containerWidth, 0);
+                    borderGradient.addColorStop(0, config.gradientColors[0] + 'E6'); // 90% opacity at left
+                    borderGradient.addColorStop(0.5, config.color); // Full opacity in middle
+                    borderGradient.addColorStop(1, config.gradientColors[1] + 'E6'); // 90% opacity at right
+                }
+                
                 return {
                     label: config.name,
                     data: orderedData.map(d => d[key] !== undefined && d[key] !== null ? d[key] : null),
-                    borderColor: config.color,
-                    backgroundColor: config.color + '20', // Add transparency for mobile
-                    borderDash: config.dashArray ? config.dashArray.split(',').map(Number) : undefined,
-                    yAxisID: containerWidth >= 768 && config.yAxis === 'right' ? 'y1' : 'y', // Use single axis on mobile
-                    tension: 0.3,
+                    borderColor: borderGradient || config.color,
+                    backgroundColor: backgroundGradient || (config.color + '20'),
+                    borderDash: config.dashArray || undefined,
+                    yAxisID: containerWidth >= 768 && config.yAxis === 'right' ? 'y1' : 'y',
+                    
+                    // Enhanced smoothing and styling
+                    tension: 0.4, // Increased for smoother curves (monotone-like effect)
+                    cubicInterpolationMode: 'monotone', // Smooth monotone interpolation
                     spanGaps: true,
-                    fill: false,
+                    fill: backgroundGradient ? 'origin' : false, // Enable subtle gradient fill
+                    
+                    // Modern point styling
                     pointBackgroundColor: config.color,
                     pointBorderColor: '#ffffff',
-                    pointBorderWidth: containerWidth < 640 ? 1 : 2
+                    pointBorderWidth: containerWidth < 640 ? 2 : 3,
+                    pointRadius: containerWidth < 640 ? 3 : 4,
+                    pointHoverRadius: containerWidth < 640 ? 5 : 7,
+                    pointHoverBorderWidth: 3,
+                    
+                    // Enhanced line styling
+                    borderWidth: containerWidth < 640 ? 2 : 3,
+                    borderJoinStyle: 'round', // Rounded line joins
+                    borderCapStyle: 'round',  // Rounded line caps
+                    
+                    // Shadow effect (using multiple datasets technique)
+                    shadowOffsetX: 0,
+                    shadowOffsetY: 2,
+                    shadowBlur: 4,
+                    shadowColor: config.color + '40'
                 };
             });
 
