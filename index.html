@@ -823,7 +823,7 @@
                             afterBody: function(context) {
                                 // Add market summary to tooltip
                                 const dataIndex = context[0].dataIndex;
-                                const dataPoint = filteredData.slice().reverse()[dataIndex];
+                                const dataPoint = filteredData[dataIndex]; // No reverse needed
                                 
                                 if (dataPoint) {
                                     const upStocks = dataPoint['Number of stocks up 4% plus today'];
@@ -940,8 +940,17 @@
             }
             if (filteredData.length === 0) return;
 
-            // Reverse to chronological order (oldest to newest) so latest date appears on the right
-            const orderedData = filteredData.slice().reverse();
+            // Debug: Check data ordering
+            console.log('=== CHART DATA ORDER DEBUG ===');
+            console.log('First 3 filteredData dates (before reverse):', filteredData.slice(0, 3).map(d => d.Date));
+            console.log('Last 3 filteredData dates (before reverse):', filteredData.slice(-3).map(d => d.Date));
+            
+            // Keep newest-first order so latest date appears on the right
+            const orderedData = filteredData.slice(); // No reverse - keep as newest first
+            
+            console.log('First 3 orderedData dates (will show on LEFT):', orderedData.slice(0, 3).map(d => d.Date));
+            console.log('Last 3 orderedData dates (will show on RIGHT):', orderedData.slice(-3).map(d => d.Date));
+            
             const labels = orderedData.map(d => {
                 // Format labels based on container width
                 if (containerWidth < 640) {
