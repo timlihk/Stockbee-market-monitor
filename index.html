@@ -342,6 +342,10 @@
         // Load and parse CSV data (enhanced version)
         async function loadMarketData(skipFreshCheck = false) {
             try {
+                console.log('=== LOADING MARKET DATA ===');
+                console.log('skipFreshCheck:', skipFreshCheck);
+                console.log('Current time:', new Date().toISOString());
+                
                 document.getElementById('loading-spinner').style.display = 'block';
                 
                 // Check for fresh data first (unless skipped)
@@ -387,8 +391,12 @@
                 }
                 
                 if (!csvText || csvText.includes('<!DOCTYPE html>') || csvText.includes('<HTML>')) {
-                    throw new Error('Could not fetch valid CSV data from Google Sheets');
+                    console.error('FAILED TO GET CSV DATA. Last attempt result:', csvText.substring(0, 200));
+                    throw new Error('Could not fetch valid CSV data from Google Sheets. Check console for details.');
                 }
+                
+                console.log('SUCCESS: Got CSV data, length:', csvText.length);
+                console.log('CSV preview (first 1000 chars):', csvText.substring(0, 1000));
                 
                 const lines = csvText.trim().split('\n');
                 
@@ -460,6 +468,7 @@
                     console.log(`Latest date: ${marketData[0].Date}`);
                     console.log(`Oldest date: ${marketData[marketData.length - 1].Date}`);
                     console.log('Latest record full data:', marketData[0]);
+                    console.log('All available keys in latest record:', Object.keys(marketData[0]));
                     console.log('Key fields from latest:', {
                         date: marketData[0].Date,
                         upStocks: marketData[0]['Number of stocks up 4% plus today'],
@@ -468,6 +477,15 @@
                         t2108: marketData[0]['T2108'],
                         sp500: marketData[0]['S&P']
                     });
+                    
+                    // CRITICAL DEBUG: Show what values are actually being used for current readings
+                    console.log('=== CURRENT READINGS DEBUG ===');
+                    console.log('Raw values being used:');
+                    console.log('- Up stocks:', marketData[0]['Number of stocks up 4% plus today'], typeof marketData[0]['Number of stocks up 4% plus today']);
+                    console.log('- Down stocks:', marketData[0]['Number of stocks down 4% plus today'], typeof marketData[0]['Number of stocks down 4% plus today']);
+                    console.log('- 5-day ratio:', marketData[0]['5 day ratio'], typeof marketData[0]['5 day ratio']);
+                    console.log('- T2108:', marketData[0]['T2108'], typeof marketData[0]['T2108']);
+                    console.log('- S&P:', marketData[0]['S&P'], typeof marketData[0]['S&P']);
                 }
                 
                 document.getElementById('loading-spinner').style.display = 'none';
