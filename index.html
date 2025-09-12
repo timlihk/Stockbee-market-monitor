@@ -360,11 +360,35 @@
                 const lines = csvText.trim().split('\n');
                 
                 // Skip header rows and parse data
-                const headers = lines[1].split(',');
+                console.log('Raw CSV first 3 lines:', lines.slice(0, 3));
+                
+                // Parse CSV properly handling quoted values
+                function parseCSVLine(line) {
+                    const result = [];
+                    let current = '';
+                    let inQuotes = false;
+                    
+                    for (let i = 0; i < line.length; i++) {
+                        const char = line[i];
+                        if (char === '"') {
+                            inQuotes = !inQuotes;
+                        } else if (char === ',' && !inQuotes) {
+                            result.push(current);
+                            current = '';
+                        } else {
+                            current += char;
+                        }
+                    }
+                    result.push(current);
+                    return result;
+                }
+                
+                const headers = parseCSVLine(lines[1]);
+                console.log('Parsed headers:', headers);
                 const data = [];
                 
                 for (let i = 2; i < lines.length; i++) {
-                    const values = lines[i].split(',');
+                    const values = parseCSVLine(lines[i]);
                     if (values.length >= headers.length && values[0]) {
                         const row = {};
                         headers.forEach((header, index) => {
@@ -402,7 +426,15 @@
                     console.log(`Loaded ${marketData.length} records`);
                     console.log(`Latest date: ${marketData[0].Date}`);
                     console.log(`Oldest date: ${marketData[marketData.length - 1].Date}`);
-                    console.log('First 3 records by date:', marketData.slice(0, 3).map(d => ({ date: d.Date, upStocks: d['Number of stocks up 4% plus today'], t2108: d['T2108'] })));
+                    console.log('Latest record full data:', marketData[0]);
+                    console.log('Key fields from latest:', {
+                        date: marketData[0].Date,
+                        upStocks: marketData[0]['Number of stocks up 4% plus today'],
+                        downStocks: marketData[0]['Number of stocks down 4% plus today'],
+                        ratio5day: marketData[0]['5 day ratio'],
+                        t2108: marketData[0]['T2108'],
+                        sp500: marketData[0]['S&P']
+                    });
                 }
                 
                 document.getElementById('loading-spinner').style.display = 'none';
