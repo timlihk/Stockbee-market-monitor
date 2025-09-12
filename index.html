@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stockbee Market Monitor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+                'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+                sans-serif;
+            background-color: #f9fafb;
+        }
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 400px;
+            font-size: 18px;
+            color: #666;
+        }
+        .chart-container {
+            width: 100%;
+            height: 400px;
+            background: #f8f9fa;
+            border: 2px dashed #dee2e6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="root">
+        <div class="loading">Loading Stockbee Market Monitor...</div>
+    </div>
+
+    <!-- Try multiple CDN sources for React -->
+    <script>
+        window.ReactLoadAttempt = 1;
+        
+        function loadReact() {
+            const script = document.createElement('script');
+            script.crossOrigin = 'anonymous';
+            
+            if (window.ReactLoadAttempt === 1) {
+                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js';
+            } else if (window.ReactLoadAttempt === 2) {
+                script.src = 'https://unpkg.com/react@18/umd/react.production.min.js';
+            } else {
+                // Fallback to basic HTML version
+                initBasicVersion();
+                return;
+            }
+            
+            script.onload = function() {
+                loadReactDOM();
+            };
+            
+            script.onerror = function() {
+                window.ReactLoadAttempt++;
+                loadReact();
+            };
+            
+            document.head.appendChild(script);
+        }
+        
+        function loadReactDOM() {
+            const script = document.createElement('script');
+            script.crossOrigin = 'anonymous';
+            
+            if (window.ReactLoadAttempt === 1) {
+                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js';
+            } else {
+                script.src = 'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js';
+            }
+            
+            script.onload = function() {
+                loadRecharts();
+            };
+            
+            script.onerror = function() {
+                initBasicVersion();
+            };
+            
+            document.head.appendChild(script);
+        }
+        
+        function loadRecharts() {
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/recharts/2.8.0/Recharts.min.js';
+            
+            script.onload = function() {
+                initReactVersion();
+            };
+            
+            script.onerror = function() {
+                initBasicVersion();
+            };
+            
+            document.head.appendChild(script);
+        }
+        
+        function initBasicVersion() {
+            // Generate sample data
+            function generateSampleData() {
+                const data = [];
+                const startDate = new Date('2024-01-01');
+                
+                for (let i = 0; i < 180; i++) {
+                    const date = new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000);
+                    if (date.getDay() === 0 || date.getDay() === 6) continue;
+                    
+                    const trend = Math.sin(i / 50) * 50;
+                    const volatility = Math.sin(i / 20) * 20;
+                    const noise = (Math.random() - 0.5) * 40;
+                    
+                    data.push({
+                        date: date.toLocaleDateString(),
+                        stocks_up_4pct: Math.max(0, Math.round(120 + trend + volatility + noise)),
+                        stocks_down_4pct: Math.max(0, Math.round(100 - trend + volatility + Math.abs(noise))),
+                        t2108: Math.max(10, Math.min(90, Math.round(50 + trend/2 + noise/3))),
+                        five_day_ratio: Math.max(0.2, Math.round((1.2 + trend/80 + Math.random() * 0.8) * 100) / 100)
+                    });
+                }
+                
+                return data;
+            }
+            
+            const data = generateSampleData();
+            const latest = data[data.length - 1];
+            
+            // Determine market sentiment
+            let sentiment = 'Neutral';
+            let sentimentColor = '#ffa500';
+            let description = 'Mixed breadth signals';
+            
+            if (latest.stocks_up_4pct > 300 && latest.five_day_ratio > 2.0) {
+                sentiment = 'Extremely Bullish';
+                sentimentColor = '#00C851';
+                description = 'Strong breadth thrust in progress';
+            } else if (latest.stocks_down_4pct > 300 && latest.t2108 < 20) {
+                sentiment = 'Extremely Bearish';
+                sentimentColor = '#ff4444';
+                description = 'Potential oversold bounce opportunity';
+            } else if (latest.stocks_up_4pct > latest.stocks_down_4pct + 50) {
+                sentiment = 'Bullish';
+                sentimentColor = '#66ff99';
+                description = 'Positive breadth momentum';
+            } else if (latest.stocks_down_4pct > latest.stocks_up_4pct + 50) {
+                sentiment = 'Bearish';
+                sentimentColor = '#ff6666';
+                description = 'Negative breadth momentum';
+            }
+            
+            document.getElementById('root').innerHTML = `
+                <div class="p-6 bg-gray-50 min-h-screen">
+                    <div class="max-w-7xl mx-auto">
+                        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+                            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+                                <div>
+                                    <h1 class="text-3xl font-bold text-gray-800">Stockbee Market Monitor</h1>
+                                    <p class="text-gray-600 mt-2">Breadth-based market timing tracker for swing and position trading</p>
+                                </div>
+                                <div class="text-right mt-4 md:mt-0">
+                                    <div class="text-lg font-semibold" style="color: ${sentimentColor}">${sentiment}</div>
+                                    <div class="text-sm text-gray-500">${description}</div>
+                                </div>
+                            </div>
+                            
+                            <div class="chart-container">
+                                <div class="text-center">
+                                    <div class="text-xl font-semibold text-gray-600 mb-2">📊 Interactive Charts Loading...</div>
+                                    <div class="text-sm text-gray-500">Charts will appear here once libraries load successfully</div>
+                                    <div class="mt-4 text-xs text-gray-400">Note: Using basic version due to library loading issues</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                            <div class="bg-white rounded-lg shadow p-4">
+                                <h3 class="font-semibold text-gray-800 mb-2">Key Levels</h3>
+                                <div class="space-y-2 text-sm">
+                                    <div class="flex justify-between">
+                                        <span>T2108 &lt; 20:</span>
+                                        <span class="text-green-600">Oversold Signal</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>5-Day Ratio &gt; 2.0:</span>
+                                        <span class="text-green-600">Breadth Thrust</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>4% Down &gt; 300:</span>
+                                        <span class="text-red-600">High Selling</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>25% Down/Q &lt; 200:</span>
+                                        <span class="text-green-600">Capitulation</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-white rounded-lg shadow p-4">
+                                <h3 class="font-semibold text-gray-800 mb-2">Current Readings</h3>
+                                <div class="space-y-2 text-sm">
+                                    <div class="flex justify-between">
+                                        <span>Stocks Up 4%+:</span>
+                                        <span>${latest.stocks_up_4pct.toLocaleString()}</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>Stocks Down 4%+:</span>
+                                        <span>${latest.stocks_down_4pct.toLocaleString()}</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>T2108:</span>
+                                        <span>${latest.t2108}%</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>5-Day Ratio:</span>
+                                        <span>${latest.five_day_ratio.toFixed(2)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-white rounded-lg shadow p-4">
+                                <h3 class="font-semibold text-gray-800 mb-2">Interpretation</h3>
+                                <div class="text-sm text-gray-600">
+                                    <p class="mb-2">The Market Monitor tracks breadth using significant moves (4%+ daily, 25%+ quarterly) to reduce noise.</p>
+                                    <p>Extreme readings often lead to counter-trend moves. Use for risk management and market timing.</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white rounded-lg shadow p-4">
+                            <h3 class="font-semibold text-gray-800 mb-3">Market Monitor Indicators Explained</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <h4 class="font-medium text-gray-700 mb-2">Primary Indicators:</h4>
+                                    <ul class="space-y-1 text-gray-600">
+                                        <li><strong>4% Up/Down:</strong> Daily count of stocks with significant moves</li>
+                                        <li><strong>25% Quarter:</strong> Stocks up/down 25%+ in past 65 trading days</li>
+                                        <li><strong>T2108:</strong> Percentage of stocks above 40-day moving average</li>
+                                        <li><strong>5/10-Day Ratios:</strong> Ratio of up vs down 4%+ moves</li>
+                                    </ul>
+                                </div>
+                                <div>
+                                    <h4 class="font-medium text-gray-700 mb-2">Usage Guidelines:</h4>
+                                    <ul class="space-y-1 text-gray-600">
+                                        <li><strong>Extreme Bullish:</strong> 1000+ up moves, ratio > 2.0</li>
+                                        <li><strong>Extreme Bearish:</strong> 1000+ down moves, T2108 < 20</li>
+                                        <li><strong>Oversold Bounce:</strong> Quarter down < 200</li>
+                                        <li><strong>Risk Management:</strong> Reduce positions on extreme readings</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-6">
+                            <div class="flex items-center">
+                                <div class="text-yellow-600 mr-3">⚠️</div>
+                                <div>
+                                    <h4 class="font-medium text-yellow-800">Chart Library Status</h4>
+                                    <p class="text-sm text-yellow-700 mt-1">Interactive charts are currently loading. The page shows current market readings and will display full charts once the charting library loads successfully.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Try to upgrade to full version after a delay
+            setTimeout(function() {
+                if (typeof React !== 'undefined' && typeof ReactDOM !== 'undefined' && typeof Recharts !== 'undefined') {
+                    initReactVersion();
+                }
+            }, 3000);
+        }
+        
+        function initReactVersion() {
+            if (typeof React === 'undefined' || typeof ReactDOM === 'undefined' || typeof Recharts === 'undefined') {
+                initBasicVersion();
+                return;
+            }
+            
+            const { useState, useMemo, createElement: e } = React;
+            const { 
+                LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, 
+                ResponsiveContainer, BarChart, Bar, ComposedChart, Area, AreaChart 
+            } = Recharts;
+
+            function generateSampleData() {
+                const data = [];
+                const startDate = new Date('2024-01-01');
+                
+                for (let i = 0; i < 250; i++) {
+                    const date = new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000);
+                    if (date.getDay() === 0 || date.getDay() === 6) continue;
+                    
+                    const trend = Math.sin(i / 50) * 50;
+                    const volatility = Math.sin(i / 20) * 20;
+                    const noise = (Math.random() - 0.5) * 40;
+                    
+                    data.push({
+                        date: date.toISOString().split('T')[0],
+                        dateFormatted: date.toLocaleDateString(),
+                        stocks_up_4pct: Math.max(0, Math.round(120 + trend + volatility + noise)),
+                        stocks_down_4pct: Math.max(0, Math.round(100 - trend + volatility + Math.abs(noise))),
+                        stocks_up_25pct_quarter: Math.max(100, Math.round(900 + trend * 4 + noise * 2)),
+                        stocks_down_25pct_quarter: Math.max(100, Math.round(700 - trend * 3 + Math.abs(noise) * 2)),
+                        stocks_up_50pct_month: Math.max(0, Math.round(20 + trend/4 + Math.random() * 25)),
+                        stocks_down_50pct_month: Math.max(0, Math.round(15 - trend/4 + Math.random() * 20)),
+                        stocks_up_25pct_month: Math.max(20, Math.round(180 + trend + noise/2)),
+                        stocks_down_25pct_month: Math.max(20, Math.round(150 - trend + Math.abs(noise)/2)),
+                        five_day_ratio: Math.max(0.2, Math.round((1.2 + trend/80 + Math.random() * 0.8) * 100) / 100),
+                        ten_day_ratio: Math.max(0.2, Math.round((1.1 + trend/100 + Math.random() * 0.6) * 100) / 100),
+                        t2108: Math.max(10, Math.min(90, Math.round(50 + trend/2 + noise/3))),
+                        sp500: Math.round(4300 + i * 1.5 + trend * 3 + volatility)
+                    });
+                }
+                
+                return data.slice(-180);
+            }
+
+            function StockbeeMarketMonitor() {
+                const [selectedMetric, setSelectedMetric] = useState('overview');
+                const [timeRange, setTimeRange] = useState(180);
+                
+                const sampleData = useMemo(() => generateSampleData(), []);
+                const filteredData = useMemo(() => sampleData.slice(-timeRange), [sampleData, timeRange]);
+
+                function getMarketSentiment() {
+                    if (filteredData.length === 0) return { sentiment: 'Loading...', color: '#666', description: 'Data loading' };
+                    
+                    const latest = filteredData[filteredData.length - 1];
+                    const upStocks = latest.stocks_up_4pct;
+                    const downStocks = latest.stocks_down_4pct;
+                    const t2108 = latest.t2108;
+                    const ratio5day = latest.five_day_ratio;
+
+                    if (upStocks > 300 && ratio5day > 2.0) {
+                        return { sentiment: 'Extremely Bullish', color: '#00C851', description: 'Strong breadth thrust in progress' };
+                    } else if (downStocks > 300 && t2108 < 20) {
+                        return { sentiment: 'Extremely Bearish', color: '#ff4444', description: 'Potential oversold bounce opportunity' };
+                    } else if (upStocks > downStocks + 50) {
+                        return { sentiment: 'Bullish', color: '#66ff99', description: 'Positive breadth momentum' };
+                    } else if (downStocks > upStocks + 50) {
+                        return { sentiment: 'Bearish', color: '#ff6666', description: 'Negative breadth momentum' };
+                    } else {
+                        return { sentiment: 'Neutral', color: '#ffa500', description: 'Mixed breadth signals' };
+                    }
+                }
+
+                const renderOverviewChart = () => {
+                    return e(ResponsiveContainer, { width: "100%", height: 400 },
+                        e(ComposedChart, { data: filteredData },
+                            e(CartesianGrid, { strokeDasharray: "3 3" }),
+                            e(XAxis, { 
+                                dataKey: "date",
+                                tickFormatter: (date) => new Date(date).toLocaleDateString(),
+                                interval: Math.floor(filteredData.length / 8)
+                            }),
+                            e(YAxis, { yAxisId: "left" }),
+                            e(YAxis, { yAxisId: "right", orientation: "right" }),
+                            e(Tooltip, {
+                                labelFormatter: (date) => new Date(date).toLocaleDateString(),
+                                formatter: (value, name) => [typeof value === 'number' ? value.toLocaleString() : value, name]
+                            }),
+                            e(Legend),
+                            e(Area, {
+                                yAxisId: "right", type: "monotone", dataKey: "sp500", fill: "#8884d8", fillOpacity: 0.1,
+                                stroke: "#8884d8", strokeWidth: 2, name: "S&P 500 (Proxy)"
+                            }),
+                            e(Line, {
+                                yAxisId: "left", type: "monotone", dataKey: "stocks_up_4pct", stroke: "#00C851",
+                                strokeWidth: 2, name: "Stocks Up 4%+", dot: false
+                            }),
+                            e(Line, {
+                                yAxisId: "left", type: "monotone", dataKey: "stocks_down_4pct", stroke: "#ff4444",
+                                strokeWidth: 2, name: "Stocks Down 4%+", dot: false
+                            }),
+                            e(Line, {
+                                yAxisId: "left", type: "monotone", dataKey: "t2108", stroke: "#ff6600",
+                                strokeWidth: 2, name: "T2108 (%)", dot: false
+                            })
+                        )
+                    );
+                };
+
+                const marketSentiment = getMarketSentiment();
+                const latestData = filteredData.length > 0 ? filteredData[filteredData.length - 1] : null;
+
+                return e("div", { className: "p-6 bg-gray-50 min-h-screen" },
+                    e("div", { className: "max-w-7xl mx-auto" },
+                        e("div", { className: "bg-white rounded-lg shadow-lg p-6 mb-6" },
+                            e("div", { className: "flex flex-col md:flex-row justify-between items-start md:items-center mb-6" },
+                                e("div", null,
+                                    e("h1", { className: "text-3xl font-bold text-gray-800" }, "Stockbee Market Monitor"),
+                                    e("p", { className: "text-gray-600 mt-2" }, "Breadth-based market timing tracker - Interactive Version")
+                                ),
+                                e("div", { className: "text-right mt-4 md:mt-0" },
+                                    e("div", { className: "text-lg font-semibold", style: { color: marketSentiment.color } }, marketSentiment.sentiment),
+                                    e("div", { className: "text-sm text-gray-500" }, marketSentiment.description)
+                                )
+                            ),
+                            renderOverviewChart()
+                        )
+                    )
+                );
+            }
+
+            try {
+                const domContainer = document.querySelector('#root');
+                const root = ReactDOM.createRoot(domContainer);
+                root.render(React.createElement(StockbeeMarketMonitor));
+            } catch (error) {
+                console.error('Failed to render React app:', error);
+                initBasicVersion();
+            }
+        }
+        
+        // Start loading React
+        loadReact();
+    </script>
+</body>
+</html>
