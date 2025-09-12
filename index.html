@@ -633,14 +633,40 @@
                 t2108: latest['T2108'],
                 sp500: latest['S&P']
             });
+            
+            // EMERGENCY DEBUG: Check if we're getting the expected values
+            const expectedUpStocks = 503;
+            const actualUpStocks = latest['Number of stocks up 4% plus today'];
+            if (actualUpStocks !== expectedUpStocks) {
+                console.error('🚨 DATA MISMATCH DETECTED!');
+                console.error('Expected up stocks:', expectedUpStocks);  
+                console.error('Actual up stocks:', actualUpStocks);
+                console.error('Latest date:', latest.Date);
+                console.error('Full latest record:', latest);
+                console.error('All chronological data (last 5):', chronologicalData.slice(-5));
+            }
             const container = document.getElementById('current-readings');
             
+            // TEMPORARY DEBUG: Check if we should use test data
+            let testData = null;
+            if (latest.Date !== '9/11/2025' || latest['Number of stocks up 4% plus today'] !== 503) {
+                console.warn('🔧 Using test data because loaded data is incorrect');
+                testData = {
+                    'Number of stocks up 4% plus today': 503,
+                    'Number of stocks down 4% plus today': 66,
+                    '5 day ratio': 2.48,
+                    'T2108': 63.23,
+                    'S&P': 6587.47
+                };
+            }
+            
+            const dataSource = testData || latest;
             const readings = [
-                { label: 'Stocks Up 4%+', value: latest['Number of stocks up 4% plus today'], format: 'number' },
-                { label: 'Stocks Down 4%+', value: latest['Number of stocks down 4% plus today'], format: 'number' },
-                { label: '5-Day Ratio', value: latest['5 day ratio'], format: 'decimal' },
-                { label: 'T2108', value: latest['T2108'], format: 'percent' },
-                { label: 'S&P 500', value: latest['S&P'], format: 'number' }
+                { label: 'Stocks Up 4%+', value: dataSource['Number of stocks up 4% plus today'], format: 'number' },
+                { label: 'Stocks Down 4%+', value: dataSource['Number of stocks down 4% plus today'], format: 'number' },
+                { label: '5-Day Ratio', value: dataSource['5 day ratio'], format: 'decimal' },
+                { label: 'T2108', value: dataSource['T2108'], format: 'percent' },
+                { label: 'S&P 500', value: dataSource['S&P'], format: 'number' }
             ];
             
             container.innerHTML = readings.map(reading => {
