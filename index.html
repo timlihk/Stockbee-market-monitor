@@ -260,7 +260,8 @@
                 updateDataStatus('checking', 'Checking for updates...');
                 
                 // Fetch directly from Google Sheets CSV
-                const response = await fetch('https://docs.google.com/spreadsheets/d/1O6OhS7ciA8zwfycBfGPbP2fWJnR0pn2UUvFZVDP9jpE/pub?output=csv&t=' + Date.now());
+                // Try export URL which should work better for freshness checks
+                const response = await fetch('https://docs.google.com/spreadsheets/d/1O6OhS7ciA8zwfycBfGPbP2fWJnR0pn2UUvFZVDP9jpE/export?format=csv&t=' + Date.now());
                 const csvText = await response.text();
                 const lines = csvText.trim().split('\n');
                 
@@ -352,11 +353,43 @@
                     }
                 }
                 
-                // Fetch data directly from Google Sheets with cache-busting
-                const googleSheetsUrl = `https://docs.google.com/spreadsheets/d/1O6OhS7ciA8zwfycBfGPbP2fWJnR0pn2UUvFZVDP9jpE/pub?output=csv&t=${Date.now()}`;
-                console.log('Fetching data from:', googleSheetsUrl);
-                const response = await fetch(googleSheetsUrl);
-                const csvText = await response.text();
+                // Try multiple URLs to handle redirects and access issues
+                let response;
+                const urls = [
+                    `https://docs.google.com/spreadsheets/d/1O6OhS7ciA8zwfycBfGPbP2fWJnR0pn2UUvFZVDP9jpE/pub?output=csv&t=${Date.now()}`,
+                    `https://docs.google.com/spreadsheets/d/1O6OhS7ciA8zwfycBfGPbP2fWJnR0pn2UUvFZVDP9jpE/export?format=csv&t=${Date.now()}`,
+                    `https://docs.google.com/spreadsheets/d/1O6OhS7ciA8zwfycBfGPbP2fWJnR0pn2UUvFZVDP9jpE/pub?output=csv`,
+                    `https://docs.google.com/spreadsheets/d/1O6OhS7ciA8zwfycBfGPbP2fWJnR0pn2UUvFZVDP9jpE/export?format=csv`
+                ];
+                
+                let csvText = '';
+                for (let i = 0; i < urls.length; i++) {
+                    try {
+                        console.log(`Trying URL ${i + 1}:`, urls[i]);
+                        response = await fetch(urls[i]);
+                        csvText = await response.text();
+                        
+                        // Check if we got HTML (redirect page) or actual CSV
+                        if (csvText.includes('<!DOCTYPE html>') || csvText.includes('<HTML>')) {
+                            console.log('Got HTML redirect, trying next URL...');
+                            continue;
+                        }
+                        
+                        // Check if we got valid CSV data
+                        if (csvText.includes('Date,Number of stocks') || csvText.includes('Primary Breadth') || csvText.includes('Date,')) {
+                            console.log('Found valid CSV data!');
+                            console.log('First 500 chars of CSV:', csvText.substring(0, 500));
+                            break;
+                        }
+                    } catch (error) {
+                        console.log(`URL ${i + 1} failed:`, error);
+                    }
+                }
+                
+                if (!csvText || csvText.includes('<!DOCTYPE html>') || csvText.includes('<HTML>')) {
+                    throw new Error('Could not fetch valid CSV data from Google Sheets');
+                }
+                
                 const lines = csvText.trim().split('\n');
                 
                 // Skip header rows and parse data
