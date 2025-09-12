@@ -214,6 +214,105 @@
         .dark .tooltip-arrow.bottom {
             border-top-color: rgba(17, 24, 39, 0.95);
         }
+
+        /* Chart Interaction Enhancements */
+        .chart-container canvas {
+            transition: filter 0.2s ease-in-out;
+        }
+
+        /* Vertical crosshair region styling */
+        .crosshair-region {
+            position: absolute;
+            background: linear-gradient(90deg, 
+                rgba(59, 130, 246, 0.08) 0%, 
+                rgba(59, 130, 246, 0.15) 50%, 
+                rgba(59, 130, 246, 0.08) 100%
+            );
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-left: 2px solid rgba(59, 130, 246, 0.6);
+            border-right: 2px solid rgba(59, 130, 246, 0.6);
+            pointer-events: none;
+            opacity: 0;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(1px);
+            z-index: 5;
+        }
+
+        .dark .crosshair-region {
+            background: linear-gradient(90deg, 
+                rgba(99, 102, 241, 0.12) 0%, 
+                rgba(99, 102, 241, 0.20) 50%, 
+                rgba(99, 102, 241, 0.12) 100%
+            );
+            border-color: rgba(99, 102, 241, 0.4);
+            border-left-color: rgba(99, 102, 241, 0.7);
+            border-right-color: rgba(99, 102, 241, 0.7);
+        }
+
+        .crosshair-region.show {
+            opacity: 1;
+        }
+
+        /* Hover point animations */
+        @keyframes scaleHoverPoint {
+            from {
+                transform: scale(1);
+            }
+            to {
+                transform: scale(1.4);
+            }
+        }
+
+        @keyframes pulseHoverPoint {
+            0% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.2);
+                opacity: 0.8;
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        /* Series dimming effects */
+        .chart-series-dimmed {
+            transition: opacity 0.3s ease-in-out !important;
+            opacity: 0.3 !important;
+        }
+
+        .chart-series-emphasized {
+            transition: all 0.3s ease-in-out !important;
+            filter: drop-shadow(0 0 8px currentColor) !important;
+        }
+
+        /* Loading states for smooth interactions */
+        .chart-loading {
+            position: relative;
+        }
+
+        .chart-loading::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(59, 130, 246, 0.2);
+            border-top: 2px solid rgba(59, 130, 246, 0.8);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            z-index: 10;
+        }
+
+        @keyframes spin {
+            0% { transform: translate(-50%, -50%) rotate(0deg); }
+            100% { transform: translate(-50%, -50%) rotate(360deg); }
+        }
         .loading-spinner {
             border: 3px solid #f3f4f6;
             border-top: 3px solid #3b82f6;
@@ -387,6 +486,10 @@
                         
                         <div class="w-full h-64 sm:h-72 md:h-80 lg:h-96 xl:h-[500px] relative">
                             <canvas id="stockChart" class="w-full h-full"></canvas>
+                            
+                            <!-- Vertical Crosshair Region -->
+                            <div id="crosshair-region" class="crosshair-region"></div>
+                            
                             <!-- Custom Tooltip Container -->
                             <div id="custom-tooltip" class="custom-tooltip light rounded-lg">
                                 <div class="tooltip-arrow top"></div>
@@ -1246,6 +1349,144 @@
             summaryEl.innerHTML = summaryHtml;
         }
         
+        // Enhanced chart interactivity management
+        let hoveredSeriesIndex = null;
+        let crosshairVisible = false;
+        
+        // Update crosshair region
+        function updateCrosshairRegion(chart, tooltip, show = true) {
+            const crosshairEl = document.getElementById('crosshair-region');
+            const canvas = chart.canvas;
+            const canvasRect = canvas.getBoundingClientRect();
+            
+            if (!show || tooltip.opacity === 0) {
+                crosshairEl.classList.remove('show');
+                crosshairVisible = false;
+                return;
+            }
+            
+            const chartArea = chart.chartArea;
+            const x = tooltip.caretX;
+            const regionWidth = containerWidth < 640 ? 20 : 30; // Responsive width
+            
+            // Position the vertical region
+            crosshairEl.style.left = (x - regionWidth / 2) + 'px';
+            crosshairEl.style.top = chartArea.top + 'px';
+            crosshairEl.style.width = regionWidth + 'px';
+            crosshairEl.style.height = (chartArea.bottom - chartArea.top) + 'px';
+            
+            crosshairEl.classList.add('show');
+            crosshairVisible = true;
+        }
+        
+        // Animate hover points with scale and pulse effects
+        function animateHoverPoints(chart, tooltip, activeElements) {
+            // Reset all point animations
+            chart.data.datasets.forEach((dataset, datasetIndex) => {
+                if (dataset._meta && dataset._meta[chart.id]) {
+                    dataset._meta[chart.id].data.forEach((point, pointIndex) => {
+                        if (point && point.options) {
+                            point.options.radius = point.options.baseRadius || (containerWidth < 640 ? 3 : 4);
+                            point.options.hoverRadius = point.options.baseHoverRadius || (containerWidth < 640 ? 6 : 8);
+                        }
+                    });
+                }
+            });
+            
+            // Animate hovered points
+            if (activeElements && activeElements.length > 0) {
+                activeElements.forEach(element => {
+                    const point = element.element;
+                    if (point && point.options) {
+                        // Store base values if not already stored
+                        if (!point.options.baseRadius) {
+                            point.options.baseRadius = point.options.radius;
+                            point.options.baseHoverRadius = point.options.hoverRadius;
+                        }
+                        
+                        // Animated scaling
+                        point.options.radius = (point.options.baseRadius * 1.5);
+                        point.options.hoverRadius = (point.options.baseHoverRadius * 1.3);
+                        point.options.borderWidth = 3;
+                        point.options.hoverBorderWidth = 4;
+                    }
+                });
+            }
+        }
+        
+        // Manage series emphasis and dimming
+        function updateSeriesEmphasis(chart, activeElements) {
+            if (!activeElements || activeElements.length === 0) {
+                // No active elements - reset all series
+                chart.data.datasets.forEach((dataset, index) => {
+                    const meta = chart.getDatasetMeta(index);
+                    if (meta && meta.$context && meta.$context.element) {
+                        meta.$context.element.options.borderWidth = dataset.borderWidth || 2;
+                        meta.$context.element.options.borderColor = dataset.borderColor;
+                        meta.$context.element.options.backgroundColor = dataset.backgroundColor;
+                    }
+                });
+                hoveredSeriesIndex = null;
+                return;
+            }
+            
+            const activeDatasetIndex = activeElements[0].datasetIndex;
+            
+            // Only update if hovering a different series
+            if (hoveredSeriesIndex === activeDatasetIndex) return;
+            hoveredSeriesIndex = activeDatasetIndex;
+            
+            chart.data.datasets.forEach((dataset, index) => {
+                const meta = chart.getDatasetMeta(index);
+                if (meta && meta.$context) {
+                    if (index === activeDatasetIndex) {
+                        // Emphasize active series
+                        dataset._originalBorderWidth = dataset._originalBorderWidth || dataset.borderWidth;
+                        dataset.borderWidth = (dataset._originalBorderWidth * 1.5);
+                        
+                        // Add glow effect by manipulating colors
+                        if (dataset.borderColor && typeof dataset.borderColor === 'string') {
+                            dataset._glowColor = dataset.borderColor;
+                        }
+                    } else {
+                        // Dim non-active series
+                        dataset.borderWidth = (dataset._originalBorderWidth || dataset.borderWidth) * 0.7;
+                        
+                        // Reduce opacity for non-hovered series
+                        if (dataset.borderColor && typeof dataset.borderColor === 'string') {
+                            dataset.borderColor = dataset.borderColor + '60'; // Add transparency
+                        }
+                        if (dataset.backgroundColor && typeof dataset.backgroundColor === 'string') {
+                            dataset.backgroundColor = dataset.backgroundColor + '40'; // More transparent
+                        }
+                    }
+                }
+            });
+            
+            // Trigger chart update
+            chart.update('none'); // Update without animation for smooth interaction
+        }
+        
+        // Reset series emphasis when leaving chart
+        function resetSeriesEmphasis(chart) {
+            chart.data.datasets.forEach((dataset, index) => {
+                if (dataset._originalBorderWidth) {
+                    dataset.borderWidth = dataset._originalBorderWidth;
+                }
+                
+                // Restore original colors
+                Object.entries(indicatorConfig).forEach(([key, config]) => {
+                    if (config.name === dataset.label) {
+                        dataset.borderColor = dataset._originalBorderGradient || config.color;
+                        dataset.backgroundColor = dataset._originalBackgroundGradient || (config.color + '20');
+                    }
+                });
+            });
+            
+            hoveredSeriesIndex = null;
+            chart.update('none');
+        }
+        
         // Intelligent tooltip positioning to avoid clipping
         function positionTooltip(tooltipEl, chart, tooltip) {
             const canvas = chart.canvas;
@@ -1340,15 +1581,18 @@
                     tooltip: {
                         enabled: false, // Disable default tooltip
                         external: function(context) {
-                            // Custom tooltip with HTML, animations, and intelligent positioning
+                            // Enhanced custom tooltip with animations and interactivity
                             const tooltipEl = document.getElementById('custom-tooltip');
                             const chart = context.chart;
                             const tooltip = context.tooltip;
+                            const activeElements = chart.getActiveElements();
                             
-                            // Hide tooltip when no data
+                            // Hide tooltip and reset interactions when no data
                             if (tooltip.opacity === 0) {
                                 tooltipEl.classList.remove('show');
                                 tooltipEl.classList.add('fade-out');
+                                updateCrosshairRegion(chart, tooltip, false);
+                                resetSeriesEmphasis(chart);
                                 setTimeout(() => {
                                     tooltipEl.style.opacity = '0';
                                     tooltipEl.style.pointerEvents = 'none';
@@ -1361,6 +1605,15 @@
                             tooltipEl.style.pointerEvents = 'none';
                             tooltipEl.classList.remove('fade-out');
                             tooltipEl.classList.add('slide-in', 'show');
+                            
+                            // Update crosshair region
+                            updateCrosshairRegion(chart, tooltip, true);
+                            
+                            // Animate hover points
+                            animateHoverPoints(chart, tooltip, activeElements);
+                            
+                            // Update series emphasis
+                            updateSeriesEmphasis(chart, activeElements);
                             
                             // Get data point
                             const dataIndex = tooltip.dataPoints[0].dataIndex;
@@ -1433,17 +1686,56 @@
                 elements: {
                     point: {
                         radius: containerWidth < 640 ? 3 : 4,
-                        hoverRadius: containerWidth < 640 ? 6 : 8,
-                        hitRadius: containerWidth < 640 ? 8 : 12,
-                        borderWidth: 2,
-                        hoverBorderWidth: 3
+                        hoverRadius: containerWidth < 640 ? 8 : 12,
+                        hitRadius: containerWidth < 640 ? 12 : 16,
+                        borderWidth: containerWidth < 640 ? 2 : 3,
+                        hoverBorderWidth: containerWidth < 640 ? 3 : 4,
+                        pointStyle: 'circle',
+                        // Enhanced hover animation properties
+                        hoverBackgroundColor: function(context) {
+                            return context.element.options.backgroundColor;
+                        },
+                        hoverBorderColor: '#ffffff'
                     },
                     line: {
                         borderWidth: containerWidth < 640 ? 2 : 3,
                         tension: 0.4, // Smooth curves
                         borderJoinStyle: 'round',
-                        borderCapStyle: 'round'
+                        borderCapStyle: 'round',
+                        // Enhanced hover effects
+                        hoverBorderWidth: function(context) {
+                            return (context.dataset.borderWidth || 3) * 1.3;
+                        }
                     }
+                },
+                // Enhanced animations for smoother interactions
+                animation: {
+                    duration: 300,
+                    easing: 'easeOutQuart',
+                    onComplete: function() {
+                        // Ensure crosshair is properly positioned after animation
+                        if (crosshairVisible && this.tooltip && this.tooltip.opacity > 0) {
+                            updateCrosshairRegion(this, this.tooltip, true);
+                        }
+                    }
+                },
+                animations: {
+                    // Smooth property animations
+                    radius: {
+                        duration: 200,
+                        easing: 'easeOutBack'
+                    },
+                    borderWidth: {
+                        duration: 150,
+                        easing: 'easeOutQuad'
+                    }
+                },
+                // Enhanced hover interactions
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                    axis: 'x',
+                    includeInvisible: false
                 },
                 // Enhanced chart area styling
                 layout: {
@@ -1579,6 +1871,20 @@
                 type: "line",
                 data: { labels, datasets },
                 options: getResponsiveChartOptions(timeRange, rangeText, containerWidth)
+            });
+            
+            // Add enhanced mouse interaction event listeners
+            canvas.addEventListener('mouseleave', function() {
+                // Clean up interactions when mouse leaves chart
+                const crosshairEl = document.getElementById('crosshair-region');
+                crosshairEl.classList.remove('show');
+                crosshairVisible = false;
+                resetSeriesEmphasis(chartInstance);
+            });
+            
+            canvas.addEventListener('mouseenter', function() {
+                // Prepare for interactions when mouse enters chart
+                canvas.style.cursor = 'crosshair';
             });
         }
         
