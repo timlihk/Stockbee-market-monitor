@@ -51,6 +51,18 @@
             fill: transparent;
             cursor: crosshair;
         }
+        .hover-line {
+            stroke: #6b7280;
+            stroke-width: 1;
+            stroke-dasharray: 2,2;
+            pointer-events: none;
+            opacity: 0.7;
+        }
+        .hover-point {
+            fill: white;
+            stroke-width: 2;
+            pointer-events: none;
+        }
         .indicator-checkbox {
             appearance: none;
             width: 16px;
@@ -315,6 +327,11 @@
             const primaryContainer = document.getElementById('primary-indicators');
             const secondaryContainer = document.getElementById('secondary-indicators');
             const marketContainer = document.getElementById('market-indicators');
+            
+            // Clear existing checkboxes to prevent duplicates
+            primaryContainer.innerHTML = '';
+            secondaryContainer.innerHTML = '';
+            marketContainer.innerHTML = '';
             
             Object.entries(indicatorConfig).forEach(([key, config]) => {
                 const container = config.category === 'primary' ? primaryContainer :
@@ -642,7 +659,28 @@
                 }
             });
             
-            // Add hover areas for tooltips
+            // Create hover elements
+            const hoverLine = createSVGElement('line', {
+                x1: '0', y1: '0', x2: '0', y2: height.toString(),
+                class: 'hover-line',
+                style: 'display: none'
+            });
+            chartGroup.appendChild(hoverLine);
+            
+            const hoverPoints = [];
+            activeIndicators.forEach(key => {
+                const config = indicatorConfig[key];
+                const hoverPoint = createSVGElement('circle', {
+                    cx: '0', cy: '0', r: '5',
+                    class: 'hover-point',
+                    stroke: config.color,
+                    style: 'display: none'
+                });
+                hoverPoints.push({ element: hoverPoint, key, config });
+                chartGroup.appendChild(hoverPoint);
+            });
+            
+            // Add hover areas for enhanced tooltips
             filteredData.forEach((d, i) => {
                 const x = scaleX(i);
                 const hoverRect = createSVGElement('rect', {
@@ -651,21 +689,110 @@
                 });
                 
                 hoverRect.addEventListener('mouseenter', (e) => {
-                    const tooltipContent = [`<strong>${d.Date}</strong>`];
-                    activeIndicators.forEach(key => {
+                    // Show hover line
+                    hoverLine.setAttribute('x1', x.toString());
+                    hoverLine.setAttribute('x2', x.toString());
+                    hoverLine.style.display = 'block';
+                    
+                    // Show hover points for each active indicator
+                    hoverPoints.forEach(({ element, key, config }) => {
                         if (d[key] !== undefined && d[key] !== null) {
-                            const config = indicatorConfig[key];
-                            tooltipContent.push(`<span style="color: ${config.color}">●</span> ${config.name}: ${d[key].toLocaleString()}`);
+                            const scaleFunc = config.yAxis === 'left' ? scaleLeft : scaleRight;
+                            const y = scaleFunc(d[key]);
+                            element.setAttribute('cx', x.toString());
+                            element.setAttribute('cy', y.toString());
+                            element.style.display = 'block';
+                        } else {
+                            element.style.display = 'none';
                         }
                     });
                     
+                    // Enhanced tooltip content
+                    const tooltipContent = [`<strong>📅 ${d.Date}</strong>`];
+                    
+                    // Add market summary
+                    const upStocks = d['Number of stocks up 4% plus today'];
+                    const downStocks = d['Number of stocks down 4% plus today'];
+                    const t2108 = d['T2108'];
+                    const ratio5day = d['5 day ratio'];
+                    
+                    if (upStocks !== undefined && downStocks !== undefined) {
+                        const netBreadth = upStocks - downStocks;
+                        const breadthColor = netBreadth > 0 ? '#10b981' : '#ef4444';
+                        tooltipContent.push(`<div style="margin: 8px 0; padding: 4px; background: rgba(0,0,0,0.1); border-radius: 4px;">`);
+                        tooltipContent.push(`<strong>📊 Market Summary</strong>`);
+                        tooltipContent.push(`Net Breadth: <span style="color: ${breadthColor}">${netBreadth > 0 ? '+' : ''}${netBreadth.toLocaleString()}</span>`);
+                        if (ratio5day) tooltipContent.push(`5D Ratio: <strong>${ratio5day.toFixed(2)}</strong>`);
+                        if (t2108) tooltipContent.push(`T2108: <strong>${t2108.toFixed(1)}%</strong>`);
+                        tooltipContent.push(`</div>`);
+                    }
+                    
+                    // Add selected indicators
+                    tooltipContent.push(`<strong>📈 Selected Indicators:</strong>`);
+                    activeIndicators.forEach(key => {
+                        if (d[key] !== undefined && d[key] !== null) {
+                            const config = indicatorConfig[key];
+                            let value = d[key];
+                            let displayValue;
+                            
+                            // Format values appropriately
+                            if (key === 'T2108') {
+                                displayValue = `${value.toFixed(1)}%`;
+                            } else if (key === '5 day ratio' || key === '10 day  ratio ') {
+                                displayValue = value.toFixed(2);
+                            } else if (typeof value === 'number') {
+                                displayValue = value.toLocaleString();
+                            } else {
+                                displayValue = value;
+                            }
+                            
+                            tooltipContent.push(`<span style="color: ${config.color}">●</span> ${config.name}: <strong>${displayValue}</strong>`);
+                        }
+                    });
+                    
+                    // Position and show tooltip
                     tooltip.innerHTML = tooltipContent.join('<br>');
                     tooltip.style.display = 'block';
-                    tooltip.style.left = (e.pageX + 10) + 'px';
-                    tooltip.style.top = (e.pageY - 10) + 'px';
+                    
+                    // Smart positioning to avoid edge overflow
+                    const tooltipRect = tooltip.getBoundingClientRect();
+                    let left = e.pageX + 15;
+                    let top = e.pageY - 10;
+                    
+                    if (left + tooltipRect.width > window.innerWidth - 20) {
+                        left = e.pageX - tooltipRect.width - 15;
+                    }
+                    if (top + tooltipRect.height > window.innerHeight - 20) {
+                        top = e.pageY - tooltipRect.height - 10;
+                    }
+                    
+                    tooltip.style.left = Math.max(10, left) + 'px';
+                    tooltip.style.top = Math.max(10, top) + 'px';
+                });
+                
+                hoverRect.addEventListener('mousemove', (e) => {
+                    // Update tooltip position on mouse move
+                    const tooltipRect = tooltip.getBoundingClientRect();
+                    let left = e.pageX + 15;
+                    let top = e.pageY - 10;
+                    
+                    if (left + tooltipRect.width > window.innerWidth - 20) {
+                        left = e.pageX - tooltipRect.width - 15;
+                    }
+                    if (top + tooltipRect.height > window.innerHeight - 20) {
+                        top = e.pageY - tooltipRect.height - 10;
+                    }
+                    
+                    tooltip.style.left = Math.max(10, left) + 'px';
+                    tooltip.style.top = Math.max(10, top) + 'px';
                 });
                 
                 hoverRect.addEventListener('mouseleave', () => {
+                    // Hide hover elements
+                    hoverLine.style.display = 'none';
+                    hoverPoints.forEach(({ element }) => {
+                        element.style.display = 'none';
+                    });
                     tooltip.style.display = 'none';
                 });
                 
