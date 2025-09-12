@@ -615,23 +615,24 @@
         function updateCurrentReadings() {
             if (marketData.length === 0) return;
             
-            // Find the most recent valid data point (in case first entries have missing data)
-            let latest = null;
-            for (let i = 0; i < Math.min(marketData.length, 5); i++) {
-                const dataPoint = marketData[i];
-                if (dataPoint.Date && (dataPoint['Number of stocks up 4% plus today'] !== undefined || 
-                    dataPoint['T2108'] !== undefined || dataPoint['5 day ratio'] !== undefined)) {
-                    latest = dataPoint;
-                    break;
-                }
-            }
+            // Use the same data source as the chart: get unfiltered data in chronological order
+            const chronologicalData = marketData.slice().reverse(); // Oldest to newest
+            const latest = chronologicalData[chronologicalData.length - 1]; // Get the most recent
             
-            if (!latest) {
+            if (!latest || !latest.Date) {
                 console.warn('No valid recent data found for current readings');
                 return;
             }
             
-            console.log('Latest data point for current readings:', latest);
+            console.log('Latest data point for current readings (from chronological):', latest);
+            console.log('Date:', latest.Date);
+            console.log('Raw values:', {
+                upStocks: latest['Number of stocks up 4% plus today'],
+                downStocks: latest['Number of stocks down 4% plus today'],
+                ratio5day: latest['5 day ratio'],
+                t2108: latest['T2108'],
+                sp500: latest['S&P']
+            });
             const container = document.getElementById('current-readings');
             
             const readings = [
