@@ -23,12 +23,13 @@ A fast, single‑page, client‑only market breadth dashboard that reads live da
 
 ## Data Source
 
-This page fetches a public Google Sheet as CSV. The sheet ID is hard‑coded in `script.js` as `SHEET_ID`.
+This page fetches a public Google Sheet as CSV. The sheet ID is defined in `script.js` as `SHEET_ID`, and you can override it (and the sheet tab) via query params.
 
 To use your sheet:
-- Publish the sheet to the web (File → Share → Publish to web) so the CSV endpoints are readable without auth.
-- Replace the `SHEET_ID` in `script.js` with your own.
-- The app tries multiple CSV endpoints (gviz/published/export) and finally a light CORS proxy for browsers that block Google CSV CORS.
+- Publish to the web: File → Share → Publish to web. Choose the sheet/tab you want visible.
+- Replace `SHEET_ID` in `script.js` with your own, or pass it in the URL.
+- Optional: pass `gid` if your data is not in the first tab.
+- The app tries multiple endpoints (gviz / published / export) and, as a last resort, a light CORS proxy to make it work on GitHub Pages.
 
 Expected columns (header names are normalized and forgiving):
 - `Date`
@@ -90,3 +91,11 @@ The app normalizes header spacing and maps columns to internal keys, so minor he
 ## License
 
 This repository follows the original project’s license terms. If absent, treat as All Rights Reserved unless a LICENSE file is added.
+URL overrides (useful for testing or for GitHub Pages):
+
+- `?sheetId=YOUR_SHEET_ID` — override the sheet ID
+- `&gid=TAB_GID` — target a specific tab by GID
+
+Example:
+
+`https://timlihk.github.io/Stockbee-market-monitor/?sheetId=YOUR_SHEET_ID&gid=0`

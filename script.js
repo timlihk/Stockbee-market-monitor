@@ -288,15 +288,18 @@
                 
                 // Try multiple URLs to handle redirects, CORS, and access issues
                 let response;
-                const SHEET_ID = '1O6OhS7ciA8zwfycBfGPbP2fWJnR0pn2UUvFZVDP9jpE';
+                const params = new URLSearchParams(location.search);
+                const SHEET_ID = params.get('sheetId') || '1O6OhS7ciA8zwfycBfGPbP2fWJnR0pn2UUvFZVDP9jpE';
+                const SHEET_GID = params.get('gid'); // optional, if a non-first sheet is used
                 const base = `https://docs.google.com/spreadsheets/d/${SHEET_ID}`;
                 const ts = Date.now();
+                const gidSuffix = SHEET_GID ? `&gid=${encodeURIComponent(SHEET_GID)}&single=true` : '';
                 const candidates = [
-                    `${base}/gviz/tq?tqx=out:csv&t=${ts}`, // gviz CSV (often CORS-friendly)
-                    `${base}/pub?output=csv&t=${ts}`,     // published CSV
-                    `${base}/export?format=csv&t=${ts}`,   // direct export
-                    `${base}/pub?output=csv`,
-                    `${base}/export?format=csv`
+                    `${base}/gviz/tq?tqx=out:csv&t=${ts}`, // gviz CSV
+                    `${base}/pub?output=csv${gidSuffix}&t=${ts}`,     // published CSV
+                    `${base}/export?format=csv${SHEET_GID?`&gid=${encodeURIComponent(SHEET_GID)}`:''}&t=${ts}`,   // direct export
+                    `${base}/pub?output=csv${gidSuffix}`,
+                    `${base}/export?format=csv${SHEET_GID?`&gid=${encodeURIComponent(SHEET_GID)}`:''}`
                 ];
                 const corsProxy = (u) => `https://cors.isomorphic-git.org/${u}`;
                 const urls = [...candidates, ...candidates.map(corsProxy)];
