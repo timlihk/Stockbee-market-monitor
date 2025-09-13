@@ -1,9 +1,12 @@
         let marketData = [];
-        let selectedIndicators = new Set(['Number of stocks up 4% plus today', 'Number of stocks down 4% plus today', 'T2108']);
-        let autoRefreshEnabled = false;
+        const DEFAULT_SELECTION = ['Number of stocks up 4% plus today', 'Number of stocks down 4% plus today', 'T2108'];
+        let selectedIndicators = new Set(JSON.parse(localStorage.getItem('selectedIndicators') || 'null') || DEFAULT_SELECTION);
+        let autoRefreshEnabled = JSON.parse(localStorage.getItem('autoRefreshEnabled') || 'false');
         let autoRefreshInterval = null;
         let lastDataHash = null;
         let lastCheckTime = null;
+        let currentFetchController = null;
+        let isLoading = false;
         
         // Define indicator configurations with SVG gradient references
         const indicatorConfig = {
@@ -139,6 +142,44 @@
             }
         };
 
+        // Canonicalize header labels and map to indicator keys
+        function canonicalize(str) {
+            return String(str || '').toLowerCase().replace(/\s+/g, ' ').trim();
+        }
+
+        const canonicalIndicatorKeyMap = (() => {
+            const map = new Map();
+            Object.keys(indicatorConfig).forEach((k) => {
+                map.set(canonicalize(k), k);
+            });
+            return map;
+        })();
+
+        function mapHeaderToKey(header) {
+            const ck = canonicalize(header);
+            return canonicalIndicatorKeyMap.get(ck) || header.trim();
+        }
+
+        // Cache helpers
+        function restoreFromCache() {
+            try {
+                const raw = localStorage.getItem('marketDataCache');
+                if (!raw) return false;
+                const cached = JSON.parse(raw);
+                if (!cached || !Array.isArray(cached.data) || cached.data.length === 0) return false;
+                marketData = cached.data;
+                lastDataHash = cached.hash || generateDataHash(marketData);
+                updateDataStatus('current', 'Loaded cached');
+                updateDataInfo();
+                createIndicatorCheckboxes();
+                drawChart();
+                updateCurrentReadings();
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+
         // Generate hash for data comparison
         function generateDataHash(data) {
             if (!data || data.length === 0) return null;
@@ -162,7 +203,7 @@
                 // Try export URL which should work better for freshness checks
                 const response = await fetch('https://docs.google.com/spreadsheets/d/1O6OhS7ciA8zwfycBfGPbP2fWJnR0pn2UUvFZVDP9jpE/export?format=csv&t=' + Date.now());
                 const csvText = await response.text();
-                const lines = csvText.trim().split('\n');
+                const lines = csvText.trim().split(/\r?\n/);
                 
                 // Parse just enough to get the latest data point
                 const headers = lines[1].split(',');
@@ -239,19 +280,11 @@
         }
 
         // Load and parse CSV data (enhanced version)
-        async function loadMarketData(skipFreshCheck = false) {
+        async function loadMarketData(options = {}) {
+            const { quiet = false } = options;
             try {
-                
-                document.getElementById('loading-spinner').style.display = 'block';
-                
-                // Check for fresh data first (unless skipped)
-                if (!skipFreshCheck) {
-                    const freshCheck = await checkForFreshData();
-                    if (!freshCheck.hasUpdate && !freshCheck.isFirstLoad && !freshCheck.error) {
-                        document.getElementById('loading-spinner').style.display = 'none';
-                        return; // No update needed
-                    }
-                }
+                const sp = document.getElementById('loading-spinner');
+                if (sp && !quiet) sp.style.display = 'block';
                 
                 // Try multiple URLs to handle redirects and access issues
                 let response;
@@ -299,7 +332,12 @@
                     for (let i = 0; i < line.length; i++) {
                         const char = line[i];
                         if (char === '"') {
-                            inQuotes = !inQuotes;
+                            if (inQuotes && line[i + 1] === '"') { // escaped quote
+                                current += '"';
+                                i++;
+                            } else {
+                                inQuotes = !inQuotes;
+                            }
                         } else if (char === ',' && !inQuotes) {
                             result.push(current);
                             current = '';
@@ -311,10 +349,16 @@
                     return result;
                 }
                 
-                const headers = parseCSVLine(lines[1]);
+                // Locate header row and map headers to indicator keys
+                const headerIndex = lines.findIndex(l => /^\s*Date\s*,/i.test(l));
+                if (headerIndex === -1) {
+                    throw new Error('CSV header not found');
+                }
+                const rawHeaders = parseCSVLine(lines[headerIndex]);
+                const headers = rawHeaders.map(mapHeaderToKey);
                 const data = [];
                 
-                for (let i = 2; i < lines.length; i++) {
+                for (let i = headerIndex + 1; i < lines.length; i++) {
                     const values = parseCSVLine(lines[i]);
                     if (values.length >= headers.length && values[0]) {
                         const row = {};
@@ -346,11 +390,26 @@
                     return dateB - dateA; // Descending order (newest first)
                 });
                 
-                lastDataHash = generateDataHash(marketData);
-                
-                
-                document.getElementById('loading-spinner').style.display = 'none';
-                updateDataStatus('current', 'Data refreshed');
+                const newHash = generateDataHash(marketData);
+                lastCheckTime = new Date();
+                if (lastDataHash && newHash !== lastDataHash) {
+                    updateDataStatus('updated', 'New data available!');
+                } else {
+                    updateDataStatus('current', 'Data refreshed');
+                }
+                lastDataHash = newHash;
+                const spinnerEl = document.getElementById('loading-spinner');
+                if (spinnerEl) spinnerEl.style.display = 'none';
+                // Save to cache for instant reloads
+                try {
+                    localStorage.setItem('marketDataCache', JSON.stringify({
+                        data: marketData,
+                        hash: lastDataHash,
+                        lastUpdated: new Date().toISOString()
+                    }));
+                } catch (e) {
+                    // Ignore storage errors (quota, private mode etc.)
+                }
                 updateDataInfo();
                 createIndicatorCheckboxes();
                 drawChart();
@@ -358,9 +417,9 @@
                 
             } catch (error) {
                 console.error('Error loading market data:', error);
-                document.getElementById('loading-spinner').style.display = 'none';
+                const spinner = document.getElementById('loading-spinner');
+                if (spinner) spinner.style.display = 'none';
                 updateDataStatus('error', 'Load failed');
-                alert('Error loading market data. Please check your connection.');
             }
         }
 
@@ -375,22 +434,20 @@
                 autoRefreshInterval = null;
                 toggleButton.textContent = 'Auto: OFF';
                 toggleButton.className = 'px-3 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700';
+                localStorage.setItem('autoRefreshEnabled', 'false');
             } else {
                 // Enable auto-refresh
                 autoRefreshEnabled = true;
                 toggleButton.textContent = 'Auto: ON';
                 toggleButton.className = 'px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700';
                 
-                // Check every 2 minutes
+                // Refresh every 2 minutes
                 autoRefreshInterval = setInterval(async () => {
-                    const freshCheck = await checkForFreshData();
-                    if (freshCheck.hasUpdate) {
-                        await loadMarketData(true); // Skip fresh check since we just did it
-                    }
+                    await loadMarketData({ quiet: true });
                 }, 120000); // 2 minutes
-                
-                // Do initial check
-                checkForFreshData();
+                localStorage.setItem('autoRefreshEnabled', 'true');
+                // Initial load
+                loadMarketData({ quiet: true });
             }
         }
 
@@ -424,6 +481,7 @@
                     } else {
                         selectedIndicators.delete(key);
                     }
+                    localStorage.setItem('selectedIndicators', JSON.stringify(Array.from(selectedIndicators)));
                     drawChart();
                 });
                 
@@ -481,19 +539,6 @@
             
             if (!latest || !latest.Date) {
                 return;
-            }
-            
-                upStocks: latest['Number of stocks up 4% plus today'],
-                downStocks: latest['Number of stocks down 4% plus today'],
-                ratio5day: latest['5 day ratio'],
-                t2108: latest['T2108'],
-                sp500: latest['S&P']
-            });
-            
-            // EMERGENCY DEBUG: Check if we're getting the expected values
-            const expectedUpStocks = 503;
-            const actualUpStocks = latest['Number of stocks up 4% plus today'];
-            if (actualUpStocks !== expectedUpStocks) {
             }
             const container = document.getElementById('current-readings');
             
@@ -660,12 +705,14 @@
                 tooltipEl.classList.add('dark');
                 themeButton.textContent = '☀️';
                 themeButton.title = 'Switch to Light Theme';
+                localStorage.setItem('isDarkTheme', 'true');
             } else {
                 body.classList.remove('dark');
                 tooltipEl.classList.remove('dark');
                 tooltipEl.classList.add('light');
                 themeButton.textContent = '🌙';
                 themeButton.title = 'Switch to Dark Theme';
+                localStorage.setItem('isDarkTheme', 'false');
             }
         }
         
@@ -693,7 +740,7 @@
         }
         
         // Update tooltip content with series swatches and formatted values
-        function updateTooltipContent(tooltip, dataPoint, dataIndex) {
+        function updateTooltipContent(chart, tooltip, dataPoint, dataIndex) {
             const dateEl = document.getElementById('tooltip-date');
             const seriesEl = document.getElementById('tooltip-series');
             const summaryEl = document.getElementById('tooltip-summary');
@@ -705,8 +752,8 @@
             seriesEl.innerHTML = '';
             
             // Add series items with color swatches
-            tooltip.dataPoints.forEach((dataPoint, index) => {
-                const datasetIndex = dataPoint.datasetIndex;
+            tooltip.dataPoints.forEach((tp, index) => {
+                const datasetIndex = tp.datasetIndex;
                 const dataset = chart.data.datasets[datasetIndex];
                 // Find the config by matching dataset label with indicator name
                 const configKey = Object.keys(indicatorConfig).find(key => 
@@ -718,12 +765,23 @@
                     const seriesItem = document.createElement('div');
                     seriesItem.className = 'tooltip-series-item';
                     
+                    // Compute deltas vs previous data point
+                    const prevPoint = chart.filteredData[dataIndex + 1];
+                    const currVal = typeof tp.parsed?.y === 'number' ? tp.parsed.y : null;
+                    const prevVal = prevPoint && typeof prevPoint[configKey] === 'number' ? prevPoint[configKey] : null;
+                    let delta = null;
+                    let pct = null;
+                    if (currVal !== null && prevVal !== null && prevVal !== 0) {
+                        delta = currVal - prevVal;
+                        pct = (delta / prevVal) * 100;
+                    }
+                    
                     seriesItem.innerHTML = `
                         <div class="series-info">
                             <div class="series-swatch" style="background-color: ${config.color}"></div>
                             <span class="series-name">${config.name}</span>
                         </div>
-                        <span class="series-value">${formatTooltipValue(dataPoint.parsed.y, config.name)}</span>
+                        <span class="series-value">${formatTooltipValue(currVal, config.name)}${delta !== null ? ` <span style="color:${delta>=0 ? '#16a34a' : '#dc2626'}; font-weight:600">(${delta>=0?'+':''}${formatTooltipValue(Math.abs(delta), config.name)}${pct!==null?` / ${pct>=0?'+':''}${pct.toFixed(1)}%`:''})</span>` : ''}</span>
                     `;
                     
                     seriesEl.appendChild(seriesItem);
@@ -942,7 +1000,7 @@
             arrow.style.transform = 'translateX(-50%)';
         }
         
-        function getResponsiveChartOptions(timeRange, rangeText, containerWidth) {
+        function getResponsiveChartOptions(timeRange, rangeText, containerWidth, visiblePoints) {
             // Determine legend position based on container width
             const legendPosition = containerWidth < 640 ? 'bottom' : 'top';
             const legendAlign = containerWidth < 640 ? 'center' : 'start';
@@ -951,30 +1009,27 @@
             const titleFontSize = containerWidth < 640 ? 12 : 14;
             const legendFontSize = containerWidth < 640 ? 10 : 12;
             const axisFontSize = containerWidth < 640 ? 9 : 11;
+            const isDense = (visiblePoints || 0) > 600;
             
             return {
                 responsive: true,
                 maintainAspectRatio: false,
-                devicePixelRatio: window.devicePixelRatio || 1,
+                devicePixelRatio: isDense ? Math.min(1.5, window.devicePixelRatio || 1) : (window.devicePixelRatio || 1),
                 interaction: { 
                     mode: "index", 
                     intersect: false,
                     axis: 'x'
                 },
                 animation: {
-                    duration: containerWidth < 640 ? 200 : 300 // Faster animations on mobile
-                },
-                parsing: {
-                    xAxisKey: 'x',
-                    yAxisKey: 'y'
-                },
-                decimation: {
-                    enabled: true,
-                    algorithm: 'lttb', // Largest Triangle Three Buckets algorithm
-                    samples: containerWidth < 640 ? 50 : 100, // Fewer samples on mobile
-                    threshold: 1000 // Only apply decimation if dataset has more than 1000 points
+                    duration: isDense ? 120 : (containerWidth < 640 ? 200 : 300) // Faster or minimal animations on dense data
                 },
                 plugins: {
+                    decimation: {
+                        enabled: true,
+                        algorithm: 'lttb',
+                        samples: isDense ? 200 : (containerWidth < 640 ? 50 : 100),
+                        threshold: 1000
+                    },
                     legend: { 
                         display: true,
                         position: legendPosition,
@@ -999,15 +1054,10 @@
                         enabled: false, // Disable default tooltip
                         external: function(context) {
                             // Enhanced custom tooltip with animations and interactivity
-                            console.log('Tooltip external function called');
                             const tooltipEl = document.getElementById('custom-tooltip');
                             const chart = context.chart;
                             const tooltip = context.tooltip;
                             const activeElements = chart.getActiveElements();
-                            
-                            console.log('Tooltip opacity:', tooltip.opacity);
-                            console.log('Active elements:', activeElements);
-                            console.log('Chart filteredData:', chart.filteredData);
                             
                             // Hide tooltip and reset interactions when no data
                             if (tooltip.opacity === 0) {
@@ -1038,15 +1088,12 @@
                             updateSeriesEmphasis(chart, activeElements);
                             
                             // Get data point
-                            console.log('Tooltip dataPoints:', tooltip.dataPoints);
                             const dataIndex = tooltip.dataPoints[0].dataIndex;
-                            console.log('Data index:', dataIndex);
                             const dataPoint = chart.filteredData[dataIndex];
-                            console.log('Data point:', dataPoint);
                             
                             if (dataPoint) {
-                                // Update tooltip content
-                                updateTooltipContent(tooltip, dataPoint, dataIndex);
+                            // Update tooltip content
+                            updateTooltipContent(chart, tooltip, dataPoint, dataIndex);
                                 
                                 // Intelligent positioning
                                 positionTooltip(tooltipEl, chart, tooltip);
@@ -1063,7 +1110,8 @@
                         },
                         ticks: {
                             font: { size: axisFontSize },
-                            maxTicksLimit: containerWidth < 640 ? 4 : containerWidth < 1024 ? 6 : 8,
+                            autoSkip: true,
+                            maxTicksLimit: isDense ? (containerWidth < 640 ? 3 : 6) : (containerWidth < 640 ? 4 : containerWidth < 1024 ? 6 : 8),
                             callback: function(value, index, values) {
                                 // Format dates based on screen size
                                 const date = new Date(this.getLabelForValue(value));
@@ -1110,9 +1158,9 @@
                 },
                 elements: {
                     point: {
-                        radius: containerWidth < 640 ? 3 : 4,
-                        hoverRadius: containerWidth < 640 ? 8 : 12,
-                        hitRadius: containerWidth < 640 ? 12 : 16,
+                        radius: isDense ? 0 : (containerWidth < 640 ? 2 : 3),
+                        hoverRadius: isDense ? 0 : (containerWidth < 640 ? 6 : 8),
+                        hitRadius: isDense ? 4 : (containerWidth < 640 ? 10 : 14),
                         borderWidth: containerWidth < 640 ? 2 : 3,
                         hoverBorderWidth: containerWidth < 640 ? 3 : 4,
                         pointStyle: 'circle',
@@ -1475,8 +1523,10 @@
                 chartInstance.destroy();
             }
 
-            const rangeText = timeRange > 0
-                ? `${filteredData[0].Date} to ${filteredData[filteredData.length - 1].Date}`
+            const newest = filteredData[0]?.Date;
+            const oldest = filteredData[filteredData.length - 1]?.Date;
+            const rangeText = timeRange > 0 && newest && oldest
+                ? `${oldest} to ${newest}`
                 : "All Historical Data";
 
             // Create new chart with responsive options using the datasets from selected indicators
@@ -1486,7 +1536,7 @@
                     labels: labels,
                     datasets: datasets
                 },
-                options: getResponsiveChartOptions(timeRange, rangeText, containerWidth)
+                options: getResponsiveChartOptions(timeRange, rangeText, containerWidth, labels.length)
             });
             
             // Store filtered data on chart instance for tooltip access
@@ -1529,20 +1579,30 @@
             drawChart();
         });
         document.getElementById('time-range').addEventListener('change', drawChart);
-        document.getElementById('refresh-data').addEventListener('click', () => loadMarketData(true));
+        document.getElementById('refresh-data').addEventListener('click', () => loadMarketData({ quiet: false }));
         document.getElementById('auto-refresh-toggle').addEventListener('click', toggleAutoRefresh);
         document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
         
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
-            loadMarketData();
-            
-            // Set up periodic freshness checks (every 5 minutes when auto-refresh is off)
-            setInterval(async () => {
-                if (!autoRefreshEnabled) {
-                    await checkForFreshData();
-                }
-            }, 300000); // 5 minutes
+            // Restore theme
+            const savedTheme = localStorage.getItem('isDarkTheme');
+            if (savedTheme === 'true') {
+                // toggleTheme flips the flag, so set to opposite first
+                isDarkTheme = false;
+                toggleTheme();
+            }
+            // Restore auto-refresh UI state
+            if (autoRefreshEnabled) {
+                const toggleButton = document.getElementById('auto-refresh-toggle');
+                toggleButton.textContent = 'Auto: ON';
+                toggleButton.className = 'px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700';
+                autoRefreshInterval = setInterval(async () => {
+                    await loadMarketData({ quiet: true });
+                }, 120000);
+            }
+            const hadCache = restoreFromCache();
+            loadMarketData({ quiet: hadCache });
         });
         
         // Responsive resize handling
