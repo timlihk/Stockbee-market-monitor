@@ -330,8 +330,101 @@
                     }
                 }
                 
-                if (!csvText || csvText.includes('<!DOCTYPE html>') || csvText.includes('<HTML>')) {
-                    throw new Error('Could not fetch valid CSV data from Google Sheets. Check console for details.');
+                if (!csvText || csvText.toLowerCase().includes('<!doctype html') || csvText.toLowerCase().includes('<html')) {
+                    // CSV failed — try JSONP via Google Visualization API (CORS-less)
+                    const jsonpResult = await (async function jsonpLoad() {
+                        return new Promise((resolve, reject) => {
+                            const cbName = 'googleSheetJsonp_' + Date.now();
+                            const timeout = setTimeout(() => {
+                                cleanup();
+                                resolve(null);
+                            }, 12000);
+                            function cleanup() {
+                                try { delete window[cbName]; } catch (e) {}
+                                if (script && script.parentNode) script.parentNode.removeChild(script);
+                                clearTimeout(timeout);
+                            }
+                            window[cbName] = function(resp) {
+                                try {
+                                    if (!resp || !resp.table || !resp.table.cols || !resp.table.rows) {
+                                        resolve(null);
+                                        return;
+                                    }
+                                    const cols = resp.table.cols.map(c => (c.label || '').trim());
+                                    const rows = resp.table.rows.map(r => r.c.map(cell => {
+                                        if (!cell) return '';
+                                        // Prefer formatted value when available, else raw value
+                                        return (cell.f != null ? String(cell.f) : (cell.v != null ? String(cell.v) : ''));
+                                    }));
+                                    resolve({ cols, rows });
+                                } finally {
+                                    cleanup();
+                                }
+                            };
+                            const script = document.createElement('script');
+                            const gidParam = SHEET_GID ? `&gid=${encodeURIComponent(SHEET_GID)}` : '';
+                            script.src = `${base}/gviz/tq?tqx=out:json;responseHandler=${cbName}${gidParam}`;
+                            script.onerror = () => { cleanup(); resolve(null); };
+                            document.body.appendChild(script);
+                        });
+                    })();
+                    if (!jsonpResult) {
+                        throw new Error('Could not fetch valid CSV/JSONP data from Google Sheets.');
+                    }
+                    // Convert JSONP table to data rows directly
+                    const rawHeaders = jsonpResult.cols;
+                    const headers = rawHeaders.map(mapHeaderToKey);
+                    const data = [];
+                    jsonpResult.rows.forEach(valuesArr => {
+                        if (!valuesArr || valuesArr.length === 0) return;
+                        const row = {};
+                        headers.forEach((header, index) => {
+                            let value = valuesArr[index];
+                            if (value && header !== 'Date') {
+                                const cleaned = value.replace(/[\",]/g, '');
+                                if (!isNaN(cleaned) && cleaned !== '') {
+                                    row[header] = parseFloat(cleaned);
+                                } else {
+                                    row[header] = value;
+                                }
+                            } else {
+                                row[header] = value;
+                            }
+                        });
+                        if (row.Date) row.parsedDate = new Date(row.Date);
+                        data.push(row);
+                    });
+                    // Continue with common processing path below
+                    
+                    // Sort data by date (most recent first)
+                    marketData = data.sort((a, b) => {
+                        const dateA = new Date(a.Date);
+                        const dateB = new Date(b.Date);
+                        return dateB - dateA; // Descending order (newest first)
+                    });
+                    
+                    const newHash = generateDataHash(marketData);
+                    lastCheckTime = new Date();
+                    if (lastDataHash && newHash !== lastDataHash) {
+                        updateDataStatus('updated', 'New data available!');
+                    } else {
+                        updateDataStatus('current', 'Data refreshed');
+                    }
+                    lastDataHash = newHash;
+                    const spinnerEl = document.getElementById('loading-spinner');
+                    if (spinnerEl) spinnerEl.style.display = 'none';
+                    try {
+                        localStorage.setItem('marketDataCache', JSON.stringify({
+                            data: marketData,
+                            hash: lastDataHash,
+                            lastUpdated: new Date().toISOString()
+                        }));
+                    } catch (e) {}
+                    updateDataInfo();
+                    createIndicatorCheckboxes();
+                    drawChart();
+                    updateCurrentReadings();
+                    return; // Finished JSONP path
                 }
                 
                 
