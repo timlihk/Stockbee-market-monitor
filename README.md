@@ -2,6 +2,10 @@
 
 A fast, single‑page, client‑only market breadth dashboard that reads live data from a Google Sheets CSV and renders interactive charts with Chart.js.
 
+## Live Demo
+
+- GitHub Pages: https://timlihk.github.io/Stockbee-market-monitor/
+
 ## Highlights
 
 - Instant loads via local cache, then updates live
@@ -15,14 +19,16 @@ A fast, single‑page, client‑only market breadth dashboard that reads live da
   - Python 3: `python3 -m http.server 8080` then open `http://localhost:8080/stockbee-market-monitor/`
   - Or open `index.html` directly (some browsers restrict CSV fetch from `file://`; use a server for best results).
 - Hosting: any static host (GitHub Pages, Netlify, Vercel, S3) — no backend required.
+  - GitHub Pages automatically serves from this repo’s `main` branch. Use the live URL above.
 
 ## Data Source
 
-This page fetches a public Google Sheet as CSV. The sheet ID is hard‑coded in `script.js` (search for the long ID in the `urls` array inside `loadMarketData`).
+This page fetches a public Google Sheet as CSV. The sheet ID is hard‑coded in `script.js` as `SHEET_ID`.
 
 To use your sheet:
-- Make the sheet (or a published version) publicly readable.
-- Replace the sheet ID in `script.js` with your own.
+- Publish the sheet to the web (File → Share → Publish to web) so the CSV endpoints are readable without auth.
+- Replace the `SHEET_ID` in `script.js` with your own.
+- The app tries multiple CSV endpoints (gviz/published/export) and finally a light CORS proxy for browsers that block Google CSV CORS.
 
 Expected columns (header names are normalized and forgiving):
 - `Date`
@@ -84,4 +90,3 @@ The app normalizes header spacing and maps columns to internal keys, so minor he
 ## License
 
 This repository follows the original project’s license terms. If absent, treat as All Rights Reserved unless a LICENSE file is added.
-

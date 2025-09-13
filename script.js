@@ -286,14 +286,20 @@
                 const sp = document.getElementById('loading-spinner');
                 if (sp && !quiet) sp.style.display = 'block';
                 
-                // Try multiple URLs to handle redirects and access issues
+                // Try multiple URLs to handle redirects, CORS, and access issues
                 let response;
-                const urls = [
-                    `https://docs.google.com/spreadsheets/d/1O6OhS7ciA8zwfycBfGPbP2fWJnR0pn2UUvFZVDP9jpE/pub?output=csv&t=${Date.now()}`,
-                    `https://docs.google.com/spreadsheets/d/1O6OhS7ciA8zwfycBfGPbP2fWJnR0pn2UUvFZVDP9jpE/export?format=csv&t=${Date.now()}`,
-                    `https://docs.google.com/spreadsheets/d/1O6OhS7ciA8zwfycBfGPbP2fWJnR0pn2UUvFZVDP9jpE/pub?output=csv`,
-                    `https://docs.google.com/spreadsheets/d/1O6OhS7ciA8zwfycBfGPbP2fWJnR0pn2UUvFZVDP9jpE/export?format=csv`
+                const SHEET_ID = '1O6OhS7ciA8zwfycBfGPbP2fWJnR0pn2UUvFZVDP9jpE';
+                const base = `https://docs.google.com/spreadsheets/d/${SHEET_ID}`;
+                const ts = Date.now();
+                const candidates = [
+                    `${base}/gviz/tq?tqx=out:csv&t=${ts}`, // gviz CSV (often CORS-friendly)
+                    `${base}/pub?output=csv&t=${ts}`,     // published CSV
+                    `${base}/export?format=csv&t=${ts}`,   // direct export
+                    `${base}/pub?output=csv`,
+                    `${base}/export?format=csv`
                 ];
+                const corsProxy = (u) => `https://cors.isomorphic-git.org/${u}`;
+                const urls = [...candidates, ...candidates.map(corsProxy)];
                 
                 let csvText = '';
                 for (let i = 0; i < urls.length; i++) {
@@ -307,7 +313,7 @@
                         }
                         
                         // Check if we got valid CSV data
-                        if (csvText.includes('Date,Number of stocks') || csvText.includes('Primary Breadth') || csvText.includes('Date,')) {
+                        if (csvText.includes('Date,') || csvText.toLowerCase().includes('date,')) {
                             break;
                         }
                     } catch (error) {
