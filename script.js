@@ -306,9 +306,16 @@
                     try {
                         response = await fetch(urls[i]);
                         csvText = await response.text();
+                        const ct = (response.headers.get('content-type') || '').toLowerCase();
+                        if (!response.ok) continue;
+                        if (ct.includes('text/html')) continue;
+                        if (!(ct.includes('text/csv') || ct.includes('application/octet-stream'))) {
+                            // Some proxies don't set CSV type; fallback to content sniff
+                            // proceed to sniff below
+                        }
                         
                         // Check if we got HTML (redirect page) or actual CSV
-                        if (csvText.includes('<!DOCTYPE html>') || csvText.includes('<HTML>')) {
+                        if (csvText.toLowerCase().includes('<!doctype html') || csvText.toLowerCase().includes('<html')) {
                             continue;
                         }
                         
@@ -838,7 +845,9 @@
             
             const chartArea = chart.chartArea;
             const x = tooltip.caretX;
-            const regionWidth = containerWidth < 640 ? 20 : 30; // Responsive width
+            // Determine a reasonable region width based on chart size
+            const chartWidth = chartArea.right - chartArea.left;
+            const regionWidth = Math.max(12, Math.min(40, Math.floor(chartWidth / 50)));
             
             // Position the vertical region
             crosshairEl.style.left = (x - regionWidth / 2) + 'px';
